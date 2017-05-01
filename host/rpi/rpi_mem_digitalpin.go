@@ -9,36 +9,40 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strconv"
+	"reflect"
+	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/kidoman/embd"
+	"github.com/kidoman/embd/host/generic"
 )
 
 // Peripheral Offsets for the Raspberry Pi
 const (
-	GpioBase     = 0x00200000 // GPIO registers
-const SizeOfuint32 = 4 // bytes
-const uint32BlockSize = SizeOfuint32 * 1024
+	GpioBase        = 0x00200000 // GPIO registers
+	SizeOfuint32    = 4          // bytes
+	uint32BlockSize = SizeOfuint32 * 1024
 )
+
 // Pull Up / Down / Off
 const (
-	PullOff Pull = iota
+	PullOff int = iota
 	PullDown
 	PullUp
 )
 
-
 var (
-	gpioArry []uint32
-	gpio []byte
-	memlock sync.Mutex
-	gpioInitialized bool	
+	gpioArry        []uint32
+	gpio            []byte
+	memlock         sync.Mutex
+	gpioInitialized bool
 )
-// 
+
+//
 func init() {
-   gpioInitialized = false
+	gpioInitialized = false
 	_, piGpioBase, err := GetBoardInfo()
 	if err != nil {
 		return
@@ -73,7 +77,7 @@ func init() {
 	header.Cap /= SizeOfuint32
 	// Convert slice header to an []uint32
 	gpioArry = *(*[]uint32)(unsafe.Pointer(&header))
-    gpioInitialized = true
+	gpioInitialized = true
 	return
 }
 
@@ -91,13 +95,11 @@ func NewRPIDigitalPin(pd *embd.PinDesc, drv embd.GPIODriver) embd.DigitalPin {
 	return &Pin{id: pd.ID, n: pd.DigitalLogical, drv: drv}
 }
 
-
-
-	// Start watching this pin for interrupt    in “type DigitalPin interface”
+// Watch  Start watching this pin for interrupt    in “type DigitalPin interface”
 func (p *Pin) Watch(edge embd.Edge, handler func(embd.DigitalPin)) error {
-    basePath:= fmt.Sprintf("/sys/class/gpio/gpio%v", p.n)
+	basePath := fmt.Sprintf("/sys/class/gpio/gpio%v", p.n)
 	edgePath := path.Join(basePath, "edge")
-    file, err := OpenFile(edgePath, os.O_RDWR, os.ModeExclusive)
+	file, err := os.OpenFile(edgePath, os.O_RDWR, os.ModeExclusive)
 
 	if err != nil {
 		return err
@@ -106,28 +108,29 @@ func (p *Pin) Watch(edge embd.Edge, handler func(embd.DigitalPin)) error {
 
 	_, err = file.Write([]byte(edge))
 
-	if  err != nil {
+	if err != nil {
 		return err
 	}
 	return generic.registerInterrupt(p, handler)
 }
 
-	// Stop watching this pin for interrupt     in “type DigitalPin interface”
+// Stop watching this pin for interrupt     in “type DigitalPin interface”
 func (p *Pin) StopWatching() error {
-	return generic.unregisterInterrupt(p)
+	return unregisterInterrupt(p)
 }
-	// N returns the logical GPIO number.   in “type DigitalPin interface”
+
+// N returns the logical GPIO number.   in “type DigitalPin interface”
 func (p *Pin) N() int {
 	return p.n
 }
 
-	// Write writes the provided value to the pin.   in “type DigitalPin interface”
-func (p *Pin) Write(val int) error {
-	if gpioInitialized==false {
+// Write writes the provided value to the pin.   in “type DigitalPin interface”
+func (pp *Pin) Write(val int) error {
+	if gpioInitialized == false {
 		return fmt.Errorf("memory map not init")
 	}
 
-	p := p.n
+	p := uint(pp.n)
 
 	// Clear register, 10 / 11 depending on bank
 	// Set register, 7 / 8 depending on bank
@@ -149,30 +152,30 @@ func (p *Pin) Write(val int) error {
 	return nil
 }
 
-	// Read reads the value from the pin.    in “type DigitalPin interface”
-func (p *Pin) Read() (int, error) {
-	if gpioInitialized==false {
-		return fmt.Errorf("memory map not init")
+// Read reads the value from the pin.    in “type DigitalPin interface”
+func (pp *Pin) Read() (int, error) {
+	if gpioInitialized == false {
+		return 0, fmt.Errorf("memory map not init")
 	}
 
-	p := p.n
+	p := pp.n
 
 	// Input level register offset (13 / 14 depending on bank)
 	//In the datasheet on page 96, we seet that the GPLEVn register is
 	//located 13 or 14 32-bit registers further than the gpio base register. GPLEV0 STORE 0~31,GPLEV1 STORE 32~53,
-	levelReg := (bcmNumber)/32 + 13
+	levelReg := (p)/32 + 13
 
-	if (gpioArry[levelReg] & (1 << uint8(pin))) != 0 {
+	if (gpioArry[levelReg] & (1 << uint8(p))) != 0 {
 		return 1, nil
 	}
 
 	return 0, nil
 }
 
-	// TimePulse measures the duration of a pulse on the pin.     in “type DigitalPin interface”
+// TimePulse measures the duration of a pulse on the pin.     in “type DigitalPin interface”
 func (p *Pin) TimePulse(state int) (time.Duration, error) {
-	if gpioInitialized==false {
-		return 0,fmt.Errorf("memory map not init")
+	if gpioInitialized == false {
+		return 0, fmt.Errorf("memory map not init")
 	}
 
 	aroundState := embd.Low
@@ -208,7 +211,7 @@ func (p *Pin) TimePulse(state int) (time.Duration, error) {
 
 	// Wait until ECHO goes low
 	for {
-		v, err := p.read()
+		v, err := p.Read()
 		if err != nil {
 			return 0, err
 		}
@@ -221,13 +224,13 @@ func (p *Pin) TimePulse(state int) (time.Duration, error) {
 	return time.Since(startTime), nil // Calculate time lapsed for ECHO to transition from high to low
 }
 
-	// SetDirection sets the direction of the pin (in/out).     in “type DigitalPin interface”
+// SetDirection sets the direction of the pin (in/out).     in “type DigitalPin interface”
 func (p *Pin) SetDirection(dir embd.Direction) error {
-	if gpioInitialized==false {
-		return 0,fmt.Errorf("memory map not init")
+	if gpioInitialized == false {
+		return fmt.Errorf("memory map not init")
 	}
 
-    bcmNumber := p.n
+	bcmNumber := uint(p.n)
 	//In the datasheet at page 91 we find that the GPFSEL registers are organised per 10 pins.
 	//So one 32-bit register contains the setup bits for 10 pins. *gpio.addr + ((g))/10 is
 	// the register address that contains the GPFSEL bits of the pin "g"
@@ -239,7 +242,7 @@ func (p *Pin) SetDirection(dir embd.Direction) error {
 	memlock.Lock()
 	defer memlock.Unlock()
 
-	if direction == embd.In {
+	if dir == embd.In {
 		gpioArry[fsel] = gpioArry[fsel] &^ (7 << shift) //7:0b111 - pinmode is 3 bits
 	} else {
 		//This is also the reason that the comment says to "always use INP_GPIO(x) before using
@@ -249,45 +252,45 @@ func (p *Pin) SetDirection(dir embd.Direction) error {
 		gpioArry[fsel] = gpioArry[fsel] &^ (7 << shift)
 		gpioArry[fsel] = (gpioArry[fsel] &^ (7 << shift)) | (1 << shift)
 	}
-	p.direction = direction
+	p.direction = dir
 
 	//#define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
 	//#define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
 
-    return nil
+	return nil
 }
 
-
-
-	// ActiveLow makes the pin active low. A low logical state is represented by
-	// a high state on the physical pin, and vice-versa.     in “type DigitalPin interface”
+// ActiveLow makes the pin active low. A low logical state is represented by
+// a high state on the physical pin, and vice-versa.     in “type DigitalPin interface”
 func (p *Pin) ActiveLow(b bool) error {
-	if gpioInitialized==false {
-		return 0,fmt.Errorf("memory map not init")
+	if gpioInitialized == false {
+		return fmt.Errorf("memory map not init")
 	}
-/*
-	str := "0"
-	if b {
-		str = "1"
-	}
-	_, err := p.activeLow.WriteString(str)
-	return err*/
+	/*
+		str := "0"
+		if b {
+			str = "1"
+		}
+		_, err := p.activeLow.WriteString(str)
+		return err*/
 
-	return errors.New("gpio: not implemented")	
+	return errors.New("gpio: not implemented")
 }
 
-	// PullUp pulls the pin up.     in “type DigitalPin interface”
+// PullUp pulls the pin up.     in “type DigitalPin interface”
 func (p *Pin) PullUp() error {
-	return 	 gpioPullMode(p.n, PullUp) 
+	gpioPullMode(uint8(p.n), PullUp)
+	return nil
 
 }
 
-	// PullDown pulls the pin down.     in “type DigitalPin interface”
+// PullDown pulls the pin down.     in “type DigitalPin interface”
 func (p *Pin) PullDown() error {
-	return 	 gpioPullMode(p.n, PullDown) 
+	gpioPullMode(uint8(p.n), PullDown)
+	return nil
 }
 
-	// Close releases the resources associated with the pin.     in “type DigitalPin interface”
+// Close releases the resources associated with the pin.     in “type DigitalPin interface”
 func (p *Pin) Close() error {
 	if err := p.StopWatching(); err != nil {
 		return err
@@ -300,7 +303,7 @@ func (p *Pin) Close() error {
 	return nil
 }
 
-func gpioPullMode(bcmNumber uint8, pull Pull) {
+func gpioPullMode(bcmNumber uint8, pull int) {
 	// Pull up/down/off register has offset 38 / 39, pull is 37
 	pullClkReg := (bcmNumber)/32 + 38
 	pullReg := 37
@@ -328,4 +331,3 @@ func gpioPullMode(bcmNumber uint8, pull Pull) {
 	gpioArry[pullClkReg] = 0
 
 }
-
