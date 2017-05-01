@@ -87,7 +87,7 @@ type Pin struct {
 	direction embd.Direction
 }
 
-func NewDigitalPin(pd *embd.PinDesc, drv embd.GPIODriver) embd.DigitalPin {
+func NewRPIDigitalPin(pd *embd.PinDesc, drv embd.GPIODriver) embd.DigitalPin {
 	return &Pin{id: pd.ID, n: pd.DigitalLogical, drv: drv}
 }
 
