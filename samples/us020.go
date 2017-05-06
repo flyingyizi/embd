@@ -15,6 +15,32 @@ import (
 	_ "github.com/kidoman/embd/host/all"
 )
 
+/* circuit connects  with "RPI 3+" GPIO (3.3v input). you need use a pair
+of resistors (330Ω and 470Ω) as a potential divider
+          +------------+              +--------+
+          |            |              |        |
+          |         vcc+--------------|5V      |
+          |            |              |        |
+          |      Truger+--------------|GPIOx   |
+          |            |              |        |
+          |        echo+------+       |        |
+          |            |      |       |        |
+          |HC-SR04     |     +\+      |  MCU   |
+          |         GND+-+   | |      |        |
+          +------------+ |   | |330Ω  |        |
+                         |   +/+      |        |
+                         |    |       |        |
+                         |    +-------|GPIOy   |
+                         |    |       |        |
+                         |   +\+      |        |
+                         |   | |      |        |
+                         |   | |470Ω  |        |
+                         |   +/+      +--------+
+                       ----   |
+                        --   ----
+                              --
+*/
+
 func main() {
 	flag.Parse()
 
