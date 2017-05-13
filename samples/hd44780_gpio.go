@@ -45,6 +45,7 @@ import (
 
 func main() {
 	flag.Parse()
+	embd.SetHost(embd.HostRPi, 50420202)
 	if err := embd.InitGPIO(); err != nil {
 		panic(err)
 	}
