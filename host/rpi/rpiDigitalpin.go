@@ -133,14 +133,13 @@ type rpiDigitPin struct {
 
 	drv embd.GPIODriver
 
-	dir *os.File
+	//dir *os.File
 	//val       *os.File
 	activeLow *os.File
 
 	readBuf []byte
 
 	initialized bool
-	direction   embd.Direction
 }
 
 func NewRPIDigitalPin(pd *embd.PinDesc, drv embd.GPIODriver) embd.DigitalPin {
@@ -161,9 +160,9 @@ func (p *rpiDigitPin) init() error {
 	}
 
 	var err error
-	if p.dir, err = p.directionFile(); err != nil {
-		return err
-	}
+	//if p.dir, err = p.directionFile(); err != nil {
+	//	return err
+	//}
 	//if p.val, err = p.valueFile(); err != nil {
 	//	return err
 	//}
@@ -220,7 +219,6 @@ func (p *rpiDigitPin) SetDirection(dir embd.Direction) error {
 		gpioArry[fsel] = gpioArry[fsel] &^ (7 << shift)
 		gpioArry[fsel] = (gpioArry[fsel] &^ (7 << shift)) | (1 << shift)
 	}
-	p.direction = dir
 
 	//#define INP_GPIO(g)   *(gpio.addr + ((g)/10)) &= ~(7<<(((g)%10)*3))
 	//#define OUT_GPIO(g)   *(gpio.addr + ((g)/10)) |=  (1<<(((g)%10)*3))
@@ -370,9 +368,9 @@ func (p *rpiDigitPin) Close() error {
 		return nil
 	}
 
-	if err := p.dir.Close(); err != nil {
-		return err
-	}
+	//if err := p.dir.Close(); err != nil {
+	//	return err
+	//}
 	//if err := p.val.Close(); err != nil {
 	//	return err
 	//}
