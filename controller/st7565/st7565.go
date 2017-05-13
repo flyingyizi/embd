@@ -21,30 +21,29 @@ func main() {
 	}
 	defer embd.CloseGPIO()
 
-/*
-P27  CS  片选                     CSX: system bus select signal (LOW select"accessiable")
-P26  RD   读写控制                RDX:read strobe signal,data are read when RDX is low
-P25  WR   读写控制                WRX: write stroble signal, data are written when wrx is low
-P33  RESET  复位                  RESX: the r61526 is initialized when resx is low
-P32  RS    数据命令选择段         DCX?  command/data select signal (LOW command; high data)
+	/*
+	   P27  CS  片选                     CSX: system bus select signal (LOW select"accessiable")
+	   P26  RD   读写控制                RDX:read strobe signal,data are read when RDX is low
+	   P25  WR   读写控制                WRX: write stroble signal, data are written when wrx is low
+	   P33  RESET  复位                  RESX: the r61526 is initialized when resx is low
+	   P32  RS    数据命令选择段         DCX?  command/data select signal (LOW command; high data)
 
-P03  DB3
-P07  DB7
-P06  DB6
-P04  DB4
-P05  DB5
-P00  DB0
-P01  DB1
-P02  DB2
+	   P03  DB3
+	   P07  DB7
+	   P06  DB6
+	   P04  DB4
+	   P05  DB5
+	   P00  DB0
+	   P01  DB1
+	   P02  DB2
 
-DCX  RDX  WRX
-0    1          command
-1          1    read paramenter
-1    1          write paramenter
-*/
+	   DCX  RDX  WRX
+	   0    1          command
+	   1          1    read paramenter
+	   1    1          write paramenter
+	*/
 
-
-	hd, err := NewGPIO("P1_7" /*cs*/,  "P1_11" /*wr*/, "P1_26" /*reset*/, "P1_12", /*rs*/
+	hd, err := NewGPIO("P1_7" /*cs*/, "P1_11" /*wr*/, "P1_26" /*reset*/, "P1_12", /*rs*/
 		"P1_15" /*db0*/, "P1_16" /*db1*/, "P1_18", /*db2*/
 		"P1_19" /*db3*/, "P1_22" /*db4*/, "P1_21" /*db5*/, "P1_23" /*db6*/, "P1_24" /*db7*/)
 
@@ -59,42 +58,20 @@ DCX  RDX  WRX
 	time.Sleep(1 * time.Second)
 
 	s := time.Now()
-	hd.Clear(BLACK)
+	hd.Clear()
 	dis := time.Now().Sub(s).Minutes()
 	fmt.Printf("hd.Clear using minutes %v\n", dis)
 
 	//	TFT_ClearScreen(WHITE);
 
 	s = time.Now()
-    for i:=500; i>0 ;i-- {}
+	for i := 500; i > 0; i-- {
+	}
 	d := time.Now().Sub(s).Nanoseconds()
 	fmt.Printf("500 loop consume %v\n", d)
-	
 
+	hd.Clear()
 
-	hd.Clear(BLACK)
-
-	functions := []func() error{
-		func() error { return hd.Clear(RED) },
-		func() error { return hd.Clear(BLUE) },
-		func() error { return hd.Clear(GREEN) },
-		func() error { return hd.Clear(YELLOW) },
-		func() error { return hd.Clear(MAGENTA) },
-		func() error { return hd.Clear(GREEN) },
-		func() error { return hd.Clear(CYAN) },
-	}
-	for  {
-		for _, f := range functions {
-			time.Sleep(1 * time.Second)
-
-			err := f()
-			if err != nil {
-				fmt.Println(err.Error())
-				//return err
-			}
-			fmt.Println("show Clear")
-		}
-	}
 
 	/*
 		running := true
@@ -133,20 +110,31 @@ const (
 	YELLOW  = 0xFFE0
 )
 
-
 // Close closes the underlying Connection.
-func (hd *R61526) Close() error {
+func (hd *ST7565) Close() error {
 	return hd.Connection.Close()
 }
 
 // Clear clears the display and mode settings sets the cursor to the home position.
-func (hd *R61526) Clear(color uint16) error {
+func (hd *ST7565) Clear() error {
+	for i:=0; i<8; i++ 	{
+		//--表格第3个命令，设置Y的坐标--//
+		//--Y轴有64个，一个坐标8位，也就是有8个坐标--//
+		//所以一般我们使用的也就是从0xB0到0x07,就够了--//	
+		dex:= byte(CmdSetPageAddr+i)
+		hd.WriteCmd(dex); 
 
-	hd.TFT_SetWindow(0, 0, TFT_XMAX, TFT_YMAX) //作用区域
-
-	for i := 0; i < TFT_YMAX; i++ {
-		for j := 0; j < TFT_XMAX; j++ {
-			hd.TFT_WriteColorData(color)
+		//--表格第4个命令，设置X坐标--//
+		//--当你的段初始化为0xA1时，X坐标从0x10,0x04到0x18,0x04,一共128位--//
+		//--当你的段初始化为0xA0时，X坐标从0x10,0x00到0x18,0x00,一共128位--//
+		//--在写入数据之后X坐标的坐标是会自动加1的，我们初始化使用0xA0所以--//
+		//--我们的X坐标从0x10,0x00开始---//
+		hd.WriteCmd(CMD_SET_COLUMN_UPPER); 
+		hd.WriteCmd(0x04);							   
+		
+		//--X轴有128位，就一共刷128次，X坐标会自动加1，所以我们不用再设置坐标--//
+		for j:=0; j<128; j++ 		{
+			hd.WriteData(0x00);  //如果设置背景为白色时，清屏选择0XFF
 		}
 	}
 
@@ -157,56 +145,89 @@ func (hd *R61526) Clear(color uint16) error {
 
 // Connection abstracts the different methods of communicating with an R61526.
 type Connection interface {
-	WriteData(data byte) error
-	WriteData16(data uint16) error
-	WriteCmd(data byte) error
+	//WriteData(data byte) error
+	//WriteData16(data uint16) error
+	//WriteCmd(data byte) error
 	// Close closes all open resources.
 	Close() error
 
 	WriteReset(val int) error
+	WriteCSX(val int) error
+	WriteDCX(val int) error
+	WriteWR(val int) error
+	fillDB8(value byte) error
 }
 
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////
 // GPIOConnection implements Connection using XXXX bus.
 type GPIOConnection struct {
-	
-	CS, WR, RESET, DCX                 embd.DigitalPin
+	CS, WR, RESET, DCX                     embd.DigitalPin
 	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 embd.DigitalPin
 }
 
-// R61526 represents an R61526-compatible character LCD controller.
-type R61526 struct {
+// ST7565 represents an ST7565-compatible character LCD controller.
+type ST7565 struct {
 	Connection
 	//eMode entryMode
 	//dMode displayMode
 	//fMode functionMode
 }
 
-func (hd *R61526) TFT_SetWindow(xStart, yStart, xEnd, yEnd uint16) {
-	hd.WriteCmd(0x2A) //WriteComm(0x2A);
 
-	hd.WriteData16(xStart)
+func (hd *ST7565) WriteCmd(cmd  byte) error {
+	var err error
 
-	hd.WriteData16(xEnd)
+	if err=hd.WriteCSX(embd.Low);err!=nil {    //chip select,打开片选
+		return err
+	}
+	//hd.WriteRD(embd.High)  //disable read，读失能	
+	if err=hd.WriteDCX(embd.Low);err!=nil {    //select command，选择命令
+		return err
+	}
+	if err=hd.WriteWR(embd.Low) ;err!=nil {   //select write，选择写模式
+		return err
+	}
 
-	hd.WriteCmd(0x2b)
 
-	hd.WriteData16(yStart)
+	//_nop_();
+	//_nop_();
+    value := byte (cmd)
+	if err=hd.fillDB8(value);err!=nil {
+			return err
+	}
 
-	hd.WriteData16(yEnd)
-
-	hd.WriteCmd(0x2c)
+	//DATA_PORT = cmd; //put command，放置命令
+	//_nop_();
+	//_nop_();
+	
+	if err=hd.WriteWR(embd.High) ;err!=nil {  //command writing ，写入命令
+		return err
+	}
+    return nil
 }
 
-func (hd *R61526) TFT_WriteColorData(color uint16) error {
-	red := (color & 0x1F)        //取5位蓝色
-	green := (color >> 5) & 0x3F //取6位绿色
-	blue := (color >> 11) & 0x1F //取5位红色
 
-	rgb := uint16((red << 11) | (green << 6) | blue)
 
-	return hd.WriteData16(rgb)
+func (hd *ST7565) WriteData(dat byte)  {	
+
+	hd.WriteCSX(embd.Low)    //chip select,打开片选
+	//hd.WriteRD(embd.High)  //disable read，读失能	
+	hd.WriteDCX(embd.High)   //select data，选择数据
+	hd.WriteWR(embd.Low)   //select write，选择写模式
+
+	//_nop_();
+	//_nop_();
+
+	hd.fillDB8(dat)        //put data，放置数据
+	//_nop_();
+	//_nop_();
+
+	hd.WriteWR(embd.High) 	   //data writing，写数据 
+}
+
+
+func (hd *ST7565) TFT_SetWindow(xStart, yStart, xEnd, yEnd uint16) {
 }
 
 /****************************************************************************
@@ -214,52 +235,68 @@ func (hd *R61526) TFT_WriteColorData(color uint16) error {
 *      * high  图片高度
 ****************************************************************************/
 
-func (hd *R61526) GUI_ShowPicture(x, y uint16, wide, high uint16) {
-
-	hd.TFT_SetWindow(x, y, uint16(x+wide)-1, y+high-1)
-	num := wide * high * 2
-	var tmp uint16 = 0
-	var temp uint16
-	for tmp < num {
-		temp = uint16(pic[tmp+1])
-		temp = temp << 8
-		temp = temp | uint16(pic[tmp])
-		//TFT_WriteData(~temp);//逐点显示
-		hd.TFT_WriteColorData(temp)
-		tmp += 2
-	}
-}
-
-func (hd *R61526) userCmd(cmd byte, params ...byte) error {
-
-	if err := hd.WriteCmd(cmd); err != nil {
-		return err
-	}
-
-	for _, m := range params {
-		if err := hd.WriteData(m); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 
+type Command byte
 
-type Command uint16
 const (
-	//B3  Frame Memory Access and Interface Setting (B3h)
-	B3  Command = 0xB3  
+	//display on/of, datasheet P42
+	CmdDisplyOFF = 0xAE
+	CmdDisplyON  = 0xAF
 
+	//display start line set, datasheet p42
+	CmdSetDispStartLine = 0x40 //0x40~0x7F, map 0 to 63
+
+	// page address set,datasheet p42
+	CmdSetPageAddr = 0xB0 //0xB0~0xB8, map 0 to 8
+
+	//column address set, datasheet p43
+	CMD_SET_COLUMN_UPPER = 0x10
+	CMD_SET_COLUMN_LOWER = 0x00
+
+	//ADC select(segment driver direction select), datasheet p44
+	CmdSetADCNormal  = 0xA0
+	CmdSetADCReverse = 0xA1
+
+	//display Normal/reverse, lit and unlit display without overwriting the content of the display data RAM
+	//datasheet p44
+	CmdSetDispNormal  = 0xA6
+	CmdSetDispReverse = 0xA7
+
+	//display all points on/off, datasheet p44
+	CMD_SET_ALLPTS_NORMAL = 0xA4
+	CMD_SET_ALLPTS_ON     = 0xA5
+
+	//LCD Bias set, , datasheet p45
+	CmdSetLCDBias9 = 0xA2
+	CmdSetLCDBias7 = 0xA3
+
+	//Reset, datasheet p46
+	CmdInternalReset = 0xE2
+
+	//common output mode select, datasheet p46
+	CMD_SET_COM_NORMAL  = 0xC0
+	CMD_SET_COM_REVERSE = 0xC8
+
+	//power controller set, datasheet p47
+	CMD_SET_POWER_CONTROL  = 0x28
+	CMD_SET_RESISTOR_RATIO = 0x20
+	CMD_SET_VOLUME_FIRST   = 0x81
+	CMD_SET_VOLUME_SECOND  = 0x00
+	CMD_SET_STATIC_OFF     = 0xAC
+	CMD_SET_STATIC_ON      = 0xAD
+	CMD_SET_STATIC_REG     = 0x00
 )
 
-
-
-func (hd *R61526) TFT_Init() error {
-	const delay = 0 // 1 * time.Microsecond
+func (hd *ST7565) TFT_Init() error {
+//	uchar i;
+//	LCD12864_RSET = 0;
+//	for (i=0; i<100; i++);
+//	LCD12864_CS = 0;
+//	LCD12864_RSET = 1;
 	functions := []func() error{
-		func() error { return hd.WriteReset(embd.High) },
 		func() error { return hd.WriteReset(embd.Low) },
+		func() error { return hd.WriteCSX(embd.Low) },
 		func() error { return hd.WriteReset(embd.High) },
 	}
 	for _, f := range functions {
@@ -270,194 +307,46 @@ func (hd *R61526) TFT_Init() error {
 		//time.Sleep(delay)
 	}
 
+    if err:= hd.WriteCmd(CmdInternalReset) ;err!=nil {
+		return err
+	}
+	time.Sleep(1*time.Millisecond)
 
+functions = []func() error{
+		func() error { return hd.WriteCmd(CmdSetADCReverse) },  //--表格第8个命令，0xA0段（左右）方向选择正常方向（0xA1为反方向）--//
+		func() error { return hd.WriteCmd(CMD_SET_COM_REVERSE) }, 	//--表格第15个命令，0xC8普通(上下)方向选择选择反向，0xC0为正常方向--// 
+		func() error { return hd.WriteCmd(CmdSetDispNormal) }, //--表格第9个命令，0xA6为设置字体为黑色，背景为白色.--0xA7为设置字体为白色，背景为黑色-//
+		func() error { return hd.WriteCmd(CMD_SET_ALLPTS_NORMAL) }, //--表格第10个命令，0xA4像素正常显示，0xA5像素全开--//
+		func() error { return hd.WriteCmd(CmdSetLCDBias9) },  ////--表格第11个命令，0xA3偏压为1/7,0xA2偏压为1/9--//
+		func() error { return hd.WriteCmd(0xF8) }, //--表格第19个命令，这个是个双字节的命令，0xF800选择增压为4X;--//
+		func() error { return hd.WriteCmd(0x01) },   //--0xF801,选择增压为5X，其实效果差不多--//
+		func() error { return hd.WriteCmd(0x81) },//--表格第18个命令，这个是个双字节命令，高字节为0X81，低字节可以选择从0x00到0X3F。用来设置背景光对比度。
+		func() error { return hd.WriteCmd(0x23) },
+		func() error { return hd.WriteCmd(0x25) }, //--表格第17个命令，选择调节电阻率--//
+		func() error { return hd.WriteCmd(0x2F) },     //--表格第16个命令，电源设置。--//
+		func() error { return hd.WriteCmd(CmdSetDispStartLine) },   	//--表格第2个命令  0x40，设置显示开始位置--//
+		func() error { return hd.WriteCmd(CmdDisplyON) },   //--表格第1个命令，开启显示--//
+	}
+	for _, f := range functions {
+		err := f()
+		if err != nil {
+			return err
+		}
+		//time.Sleep(delay)
+	}
 
-
-	//************* Start Initial Sequence **********//
-	hd.WriteCmd(0xB0)  //write comm
-	hd.WriteData(0x3F) //write data
-	hd.WriteData(0x3F)
-	//time.Sleep(delay)
-
-	hd.WriteCmd(0xB3) //p132
-	hd.WriteData(0x02)
-	hd.WriteData(0x00)
-	hd.WriteData(0x00)
-	hd.WriteData(0x00)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0xB4)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0xC0)
-	hd.WriteData(0x33) //03
-	hd.WriteData(0x4F)
-	hd.WriteData(0x00)
-	hd.WriteData(0x10)
-	hd.WriteData(0xA2)
-	hd.WriteData(0x00)
-	hd.WriteData(0x01)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0xC1)
-	hd.WriteData(0x01)
-	hd.WriteData(0x02)
-	hd.WriteData(0x20)
-	hd.WriteData(0x08)
-	hd.WriteData(0x08)
-	//time.Sleep(delay)
-
-	hd.WriteCmd(0xC3)
-	hd.WriteData(0x01)
-	hd.WriteData(0x00)
-	hd.WriteData(0x28)
-	hd.WriteData(0x08)
-	hd.WriteData(0x08)
-	//time.Sleep(delay)
-
-	hd.WriteCmd(0xC4)
-	hd.WriteData(0x11)
-	hd.WriteData(0x01)
-	hd.WriteData(0x23)
-	hd.WriteData(0x04)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0xC8) //Gamma
-	hd.WriteData(0x05)
-	hd.WriteData(0x0C)
-	hd.WriteData(0x0b)
-	hd.WriteData(0x15)
-	hd.WriteData(0x11)
-	hd.WriteData(0x09)
-	hd.WriteData(0x05)
-	hd.WriteData(0x07)
-	hd.WriteData(0x13)
-	hd.WriteData(0x10)
-	hd.WriteData(0x20)
-
-	hd.WriteData(0x13)
-	hd.WriteData(0x07)
-	hd.WriteData(0x05)
-	hd.WriteData(0x09)
-	hd.WriteData(0x11)
-	hd.WriteData(0x15)
-	hd.WriteData(0x0b)
-	hd.WriteData(0x0c)
-	hd.WriteData(0x05)
-	hd.WriteData(0x05)
-	hd.WriteData(0x02)
-
-	hd.WriteCmd(0xC9) //Gamma
-	hd.WriteData(0x05)
-	hd.WriteData(0x0C)
-	hd.WriteData(0x05)
-	hd.WriteData(0x15)
-	hd.WriteData(0x11)
-	hd.WriteData(0x09)
-	hd.WriteData(0x05)
-	hd.WriteData(0x07)
-	hd.WriteData(0x13)
-	hd.WriteData(0x10)
-	hd.WriteData(0x20)
-	hd.WriteData(0x13)
-	hd.WriteData(0x07)
-	hd.WriteData(0x05)
-	hd.WriteData(0x09)
-	hd.WriteData(0x11)
-	hd.WriteData(0x15)
-	hd.WriteData(0x0b)
-	hd.WriteData(0x0c)
-	hd.WriteData(0x05)
-	hd.WriteData(0x05)
-	hd.WriteData(0x02)
-
-	hd.WriteCmd(0xCA) //Gamma
-	hd.WriteData(0x05)
-	hd.WriteData(0x0C)
-	hd.WriteData(0x0b)
-	hd.WriteData(0x15)
-	hd.WriteData(0x11)
-	hd.WriteData(0x09)
-	hd.WriteData(0x05)
-	hd.WriteData(0x07)
-	hd.WriteData(0x13)
-	hd.WriteData(0x10)
-	hd.WriteData(0x20)
-	hd.WriteData(0x13)
-	hd.WriteData(0x07)
-	hd.WriteData(0x05)
-	hd.WriteData(0x09)
-	hd.WriteData(0x11)
-	hd.WriteData(0x15)
-	hd.WriteData(0x0b)
-	hd.WriteData(0x0c)
-	hd.WriteData(0x05)
-	hd.WriteData(0x05)
-	hd.WriteData(0x02)
-
-	hd.WriteCmd(0xD0)
-	hd.WriteData(0x33)
-	hd.WriteData(0x53)
-	hd.WriteData(0x87)
-	hd.WriteData(0x3b)
-	hd.WriteData(0x30)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0xD1)
-	hd.WriteData(0x2c)
-	hd.WriteData(0x61)
-	hd.WriteData(0x10)
-
-	hd.WriteCmd(0xD2)
-	hd.WriteData(0x03)
-	hd.WriteData(0x24)
-
-	hd.WriteCmd(0xD4)
-	hd.WriteData(0x03)
-	hd.WriteData(0x24)
-
-	hd.WriteCmd(0xE2)
-	hd.WriteData(0x3f)
-	//time.Sleep(delay)
-
-	hd.WriteCmd(0x35)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0x36)
-	hd.WriteData(0x00)
-
-	hd.WriteCmd(0x3A)
-	hd.WriteData(0x55) //55 16bit color
-
-	hd.WriteCmd(0x2A)
-	hd.WriteData(0x00)
-	hd.WriteData(0x00)
-	hd.WriteData(0x00)
-	hd.WriteData(0xEF)
-
-	hd.WriteCmd(0x2B)
-	hd.WriteData(0x00)
-	hd.WriteData(0x00)
-	hd.WriteData(0x01)
-	hd.WriteData(0x3F)
-
-	hd.WriteCmd(0x11)
-	//time.Sleep(delay)
-	hd.WriteCmd(0x29)
-	//time.Sleep(delay)
-	hd.WriteCmd(0x2C)
 	//time.Sleep(delay)
 
 	return nil
 }
 
+
+
+
 // NewGPIO creates a new R61526 connected by XXX bus.
 func NewGPIO(
-
-
-
-	cs,  wr, reset, dcx, db0, db1, db2, db3, db4, db5, db6, db7 interface{}) (*R61526, error) {
-	pinKeys := []interface{}{cs,  wr, reset, dcx, db0, db1, db2, db3, db4, db5, db6, db7}
+	cs, wr, reset, dcx, db0, db1, db2, db3, db4, db5, db6, db7 interface{}) (*ST7565, error) {
+	pinKeys := []interface{}{cs, wr, reset, dcx, db0, db1, db2, db3, db4, db5, db6, db7}
 	pins := [13]embd.DigitalPin{}
 	for idx, key := range pinKeys {
 		if key == nil {
@@ -500,11 +389,11 @@ func NewGPIO(
 			pins[9],
 			pins[10],
 			pins[11],
-			))
+		))
 }
 
 // newGPIOConnection returns a new Connection based on a 4-bit GPIO bus.
-func newGPIOConnection(cs,  wr, reset, dcx, db0, db1, db2, db3,
+func newGPIOConnection(cs, wr, reset, dcx, db0, db1, db2, db3,
 	db4, db5, db6, db7 embd.DigitalPin) *GPIOConnection {
 	return &GPIOConnection{
 		CS:    cs,
@@ -522,8 +411,8 @@ func newGPIOConnection(cs,  wr, reset, dcx, db0, db1, db2, db3,
 }
 
 // newHX8357 creates a new R61526 connected by a Connection bus.
-func newR61526(bus Connection) (*R61526, error) {
-	controller := &R61526{
+func newR61526(bus Connection) (*ST7565, error) {
+	controller := &ST7565{
 		Connection: bus,
 	}
 
@@ -563,8 +452,6 @@ func (conn *GPIOConnection) Close() error {
 	return nil
 }
 
-
-
 //  fillDB write value to DB0~7 GPIO
 func (conn *GPIOConnection) fillDB8(value byte) error {
 	functions := []func() error{
@@ -586,8 +473,6 @@ func (conn *GPIOConnection) fillDB8(value byte) error {
 	return nil
 }
 
-
-
 // to-do
 func (conn *GPIOConnection) write8(iscmd bool, value byte) error {
 
@@ -600,7 +485,7 @@ func (conn *GPIOConnection) write8(iscmd bool, value byte) error {
 		func() error { return conn.WR.Write(embd.High) }, //初始化WR
 		func() error { return conn.CS.Write(embd.Low) },  //打开片选
 		// func() error { return conn.RD.Write(embd.High) }, // invalid RDX. we set it allways high
-		func() error { return conn.DCX.Write(v) },        //indicate the value  is command or data
+		func() error { return conn.DCX.Write(v) }, //indicate the value  is command or data
 	}
 	for _, f := range functions {
 		err := f()
@@ -630,78 +515,20 @@ func (conn *GPIOConnection) write8(iscmd bool, value byte) error {
 }
 
 
-// to-do
-func (conn *GPIOConnection) write16(iscmd bool, data uint16) error {
-	v := embd.Low
-	if iscmd == false {
-		v = embd.High
-	}
-
-	functions := []func() error{
-		func() error { return conn.WR.Write(embd.High) }, //初始化WR
-		func() error { return conn.CS.Write(embd.Low) },  //打开片选
-		//func() error { return conn.RD.Write(embd.High) }, // invalid RDX. . we set it allways high
-		func() error { return conn.DCX.Write(v) },
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-
-	dataH := byte((data >> 8) & 0xff)
-	if err := conn.fillDB8(dataH); err != nil {
-		return err
-	}
-
-	// write command through rising edage of WRX
-	functions = []func() error{
-		func() error { return conn.WR.Write(embd.Low) }, //写入时序
-		func() error { return conn.WR.Write(embd.High) },
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-
-	dataL := byte(data & 0xff)
-	if err := conn.fillDB8(dataL); err != nil {
-		return err
-	}
-
-	// write command through rising edage of WRX
-	functions = []func() error{
-		func() error { return conn.WR.Write(embd.Low) }, //写入时序
-		func() error { return conn.WR.Write(embd.High) },
-		func() error { return conn.CS.Write(embd.High) }, //关闭片选
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (conn *GPIOConnection) WriteCmd(data byte) error {
-	return conn.write8(true, data)
-}
-
-func (conn *GPIOConnection) WriteData(data byte) error {
-	return conn.write8(false, data)
-}
-func (conn *GPIOConnection) WriteData16(data uint16) error {
-	return conn.write16(false, data)
-}
-
 func (conn *GPIOConnection) WriteReset(val int) error {
 	return conn.RESET.Write(val)
 }
+func (conn *GPIOConnection) WriteCSX(val int) error {
+	return conn.CS.Write(val)  
+}
+func (conn *GPIOConnection) WriteDCX(val int) error {
+	return conn.DCX.Write(val)  
+}
+func (conn *GPIOConnection) WriteWR(val int) error {
+	return conn.WR.Write(val)  
+}
+
+
 
 //*图片大小150*150
 var pic = [...]byte{0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00,
@@ -3541,3 +3368,34 @@ var pic = [...]byte{0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 0X00, 
 //https://github.com/Bodmer/TFT_HX8357
 
 //https://github.com/baran0119/ALCATEL_LCM/tree/master/OT_903D/mediatek/custom/common/kernel/lcm/r61526
+
+
+
+/*
+func (hd *ST7565) TFT_WriteColorData(color uint16) error {
+	red := (color & 0x1F)        //取5位蓝色
+	green := (color >> 5) & 0x3F //取6位绿色
+	blue := (color >> 11) & 0x1F //取5位红色
+
+	rgb := uint16((red << 11) | (green << 6) | blue)
+
+	return hd.WriteData16(rgb)
+}
+
+
+func (hd *ST7565) GUI_ShowPicture(x, y uint16, wide, high uint16) {
+
+	hd.TFT_SetWindow(x, y, uint16(x+wide)-1, y+high-1)
+	num := wide * high * 2
+	var tmp uint16 = 0
+	var temp uint16
+	for tmp < num {
+		temp = uint16(pic[tmp+1])
+		temp = temp << 8
+		temp = temp | uint16(pic[tmp])
+		//TFT_WriteData(~temp);//逐点显示
+		hd.TFT_WriteColorData(temp)
+		tmp += 2
+	}
+}
+*/
