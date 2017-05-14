@@ -57,9 +57,6 @@ func init() {
 		return
 	}
 
-	// Set the offsets into the memory interface.
-	GPIO_BASE := piGpioBase + GpioBase
-
 	//	Try /dev/mem. If that fails, then
 	//	try /dev/gpiomem. If that fails then game over.
 	file, err := os.OpenFile("/dev/mem", os.O_RDWR|os.O_SYNC, 0660)
@@ -73,7 +70,7 @@ func init() {
 	defer file.Close()
 
 	//	GPIO:
-	gpio, err = syscall.Mmap(int(file.Fd()), GPIO_BASE, uint32BlockSize,
+	gpio, err = syscall.Mmap(int(file.Fd()), (piGpioBase + GpioBase), uint32BlockSize,
 		syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 	if err != nil {
 		return //errors.New("mmap (GPIO) failed")
@@ -96,9 +93,6 @@ func mapMem() (gpioArry []uint32, gpio []byte, err error) {
 		return
 	}
 
-	// Set the offsets into the memory interface.
-	GPIO_BASE := piGpioBase + GpioBase
-
 	//	Try /dev/mem. If that fails, then
 	//	try /dev/gpiomem. If that fails then game over.
 	file, err := os.OpenFile("/dev/mem", os.O_RDWR|os.O_SYNC, 0660)
@@ -112,7 +106,7 @@ func mapMem() (gpioArry []uint32, gpio []byte, err error) {
 	defer file.Close()
 
 	//	GPIO:
-	gpio, err = syscall.Mmap(int(file.Fd()), GPIO_BASE, uint32BlockSize,
+	gpio, err = syscall.Mmap(int(file.Fd()), (piGpioBase + GpioBase), uint32BlockSize,
 		syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 	if err != nil {
 		return //errors.New("mmap (GPIO) failed")
@@ -254,19 +248,17 @@ func (p *rpiDigitPin) SetDirection(dir embd.Direction) error {
 }
 
 // Read reads the value from the pin.    in “type DigitalPin interface”
-func (pp *rpiDigitPin) Read() (int, error) {
-	if err := pp.init(); err != nil {
+func (p *rpiDigitPin) Read() (int, error) {
+	if err := p.init(); err != nil {
 		return 0, err
 	}
-
-	p := pp.n
 
 	// Input level register offset (13 / 14 depending on bank)
 	//In the datasheet on page 96, we seet that the GPLEVn register is
 	//located 13 or 14 32-bit registers further than the gpio base register. GPLEV0 STORE 0~31,GPLEV1 STORE 32~53,
-	levelReg := (p)/32 + 13
+	levelReg := (p.n)/32 + 13
 
-	if (gpioArry[levelReg] & (1 << uint8(p))) != 0 {
+	if (gpioArry[levelReg] & (1 << uint8(p.n))) != 0 {
 		return 1, nil
 	}
 
@@ -274,29 +266,27 @@ func (pp *rpiDigitPin) Read() (int, error) {
 }
 
 // Write writes the provided value to the pin.   in “type DigitalPin interface”
-func (pp *rpiDigitPin) Write(val int) error {
-	if err := pp.init(); err != nil {
+func (p *rpiDigitPin) Write(val int) error {
+	if err := p.init(); err != nil {
 		return err
 	}
-
-	p := uint(pp.n)
 
 	// Clear register, 10 / 11 depending on bank
 	// Set register, 7 / 8 depending on bank
 	//In the datasheet on page 90, we seet that the GPSET register is
 	//located 10 32-bit registers further than the gpio base register. GPCLR0 STORE 0~31,GPCLR1 STORE 32~53,
-	clearReg := p/32 + 10
+	clearReg := (p.n)/32 + 10
 	//In the datasheet on page 90, we seet that the GPSET register is
 	//located 7 32-bit registers further than the gpio base register. GPSET0 STORE 0~31,GPSET1 STORE 32~53,
-	setReg := p/32 + 7
+	setReg := (p.n)/32 + 7
 
 	memlock.Lock()
 	defer memlock.Unlock()
 
 	if val == embd.Low {
-		gpioArry[clearReg] = 1 << (p & 31)
+		gpioArry[clearReg] = 1 << uint(p.n&31)
 	} else {
-		gpioArry[setReg] = 1 << (p & 31)
+		gpioArry[setReg] = 1 << uint(p.n&31)
 	}
 	return nil
 }
@@ -383,9 +373,10 @@ func (p *rpiDigitPin) PullDown() error {
 
 // Close releases the resources associated with the pin.     in “type DigitalPin interface”
 func (p *rpiDigitPin) Close() error {
-	if err := p.StopWatching(); err != nil {
-		return err
-	}
+	//rpiDigitPin dont implement watch
+	//if err := p.StopWatching(); err != nil {
+	//	return err
+	//}
 
 	if err := p.drv.Unregister(p.id); err != nil {
 		return err

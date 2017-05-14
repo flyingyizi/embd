@@ -59,8 +59,8 @@ type I2CDeviceT int
 
 const (
 	I2C_DeviceUnknown I2CDeviceT = 0
-	I2C_0             I2CDeviceT = 1
-	I2C_1             I2CDeviceT = 2
+	I2c0              I2CDeviceT = 1
+	I2c1              I2CDeviceT = 2
 )
 
 type MakerT int
@@ -74,7 +74,7 @@ const (
 	MakerEmbest1   MakerT = 4
 )
 
-type RpiInfoT struct {
+type InfoT struct {
 	model        ModelT
 	mem          MemoryT
 	processor    ProcessorT
@@ -85,14 +85,14 @@ type RpiInfoT struct {
 	revision     uint64
 }
 
-func (info *RpiInfoT) ModelName() (modelname string) {
+func (info *InfoT) ModelName() (modelname string) {
 	return ModelName[info.model]
 }
-func (info *RpiInfoT) I2CDeviceName() (modelname string) {
+func (info *InfoT) I2CDeviceName() (modelname string) {
 	switch info.i2c {
-	case I2C_0:
+	case I2c0:
 		modelname = "/dev/i2c-0"
-	case I2C_1:
+	case I2c1:
 		modelname = "/dev/i2c-1"
 	default:
 		modelname = ""
@@ -198,7 +198,7 @@ func getRevision() (revision string, err error) {
 //
 // If the Raspberry Pi has been over-volted (voiding the warranty) the
 // revision number will have 100 at the front. e.g. 1000002.
-func getPreRPI2FromRevision(revision string) (info RpiInfoT, err error) {
+func getPreRPI2FromRevision(revision string) (info InfoT, err error) {
 	vision, err := strconv.ParseUint(revision, 16, 32) //hex number without 0x lea
 	if err != nil {
 		return
@@ -223,7 +223,7 @@ func getPreRPI2FromRevision(revision string) (info RpiInfoT, err error) {
 
 	info.processor = Broadcom2835
 	// except revision "0002"/"0003" is I2C_0
-	info.i2c = I2C_1
+	info.i2c = I2c1
 
 	//     +----------+---------+---------+--------+-------------+
 	//     | Revision |  Model  | PCB Rev | Memory | Manufacture |
@@ -237,14 +237,14 @@ func getPreRPI2FromRevision(revision string) (info RpiInfoT, err error) {
 		info.mem = Rpi256MB
 		info.model = ModelB
 		info.pcbRev = PcbRev1
-		info.i2c = I2C_0
+		info.i2c = I2c0
 	case "0003":
 		//     |   0003   |    B    |    1-1  | 256 MB |   EGOMAN    |
 		info.manufacturer = MakerEgoman
 		info.mem = Rpi256MB
 		info.model = ModelB
 		info.pcbRev = PcbRev1_1
-		info.i2c = I2C_0
+		info.i2c = I2c0
 	case "0004":
 		//     |   0004   |    B    |    1-2  | 256 MB |   Sony      |
 		info.manufacturer = MakerSony
@@ -415,7 +415,7 @@ func getPreRPI2FromRevision(revision string) (info RpiInfoT, err error) {
 // Also, due to some early issues the warranty bit has been move from bit
 // 24 to bit 25 of the revision number (i.e. 0x2000000).
 */
-func getPostRPI2FromRevision(revision string) (info RpiInfoT, err error) {
+func getPostRPI2FromRevision(revision string) (info InfoT, err error) {
 	vision, err := strconv.ParseUint(revision, 16, 32) //hex number without 0x lea
 	if err != nil {
 		return
@@ -482,11 +482,11 @@ func getPostRPI2FromRevision(revision string) (info RpiInfoT, err error) {
 	info.pcbRev = pcbrevindex
 
 	// except revision "0002"/"0003"
-	info.i2c = I2C_1
+	info.i2c = I2c1
 	return
 }
 
-func GetBoardInfo() (info RpiInfoT, periphereBase int64, err error) {
+func GetBoardInfo() (info InfoT, periphereBase int64, err error) {
 	revision, err := getRevision()
 
 	// suggest it is postPI2 firstly, then try prePI2
@@ -512,7 +512,7 @@ func GetBoardInfo() (info RpiInfoT, periphereBase int64, err error) {
 }
 
 // Read /proc/device-tree/soc/ranges and determine the base address.
-func get_dt_ranges(filename string) (base int64, err error) {
+func getDtRanges(filename string) (base int64, err error) {
 	ranges, err := os.Open(filename)
 	defer ranges.Close()
 	if err != nil {
@@ -533,6 +533,6 @@ func get_dt_ranges(filename string) (base int64, err error) {
 }
 
 func getPeripheralBase() (base int64, err error) {
-	base, err = get_dt_ranges("/proc/device-tree/soc/ranges")
+	base, err = getDtRanges("/proc/device-tree/soc/ranges")
 	return
 }
