@@ -22,28 +22,6 @@ func main() {
 	}
 	defer embd.CloseGPIO()
 
-	/*
-	   P27  CS  片选                     CSX: system bus select signal (LOW select"accessiable")
-	   P26  RD   读写控制                RDX:read strobe signal,data are read when RDX is low
-	   P25  WR   读写控制                WRX: write stroble signal, data are written when wrx is low
-	   P33  RESET  复位                  RESX: the r61526 is initialized when resx is low
-	   P32  RS    数据命令选择段         DCX?  command/data select signal (LOW command; high data)
-
-	   P03  DB3
-	   P07  DB7
-	   P06  DB6
-	   P04  DB4
-	   P05  DB5
-	   P00  DB0
-	   P01  DB1
-	   P02  DB2
-
-	   DCX  RDX  WRX
-	   0    1          command
-	   1          1    read paramenter
-	   1    1          write paramenter
-	*/
-
 	hd, err := NewGPIO("P1_7" /*cs*/, "P1_11" /*wr*/, "P1_26" /*reset*/, "P1_12", /*rs*/
 		"P1_15" /*db0*/, "P1_16" /*db1*/, "P1_18", /*db2*/
 		"P1_19" /*db3*/, "P1_22" /*db4*/, "P1_21" /*db5*/, "P1_23" /*db6*/, "P1_24" /*db7*/)
