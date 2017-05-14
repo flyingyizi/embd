@@ -17,15 +17,15 @@ import (
 
 func main() {
 	flag.Parse()
-	embd.SetHost(embd.HostRPi, 1000000)
+	embd.SetHost(embd.HostRPi, 50420202)
 	if err := embd.InitGPIO(); err != nil {
 		panic(err)
 	}
 	defer embd.CloseGPIO()
 
-	hd, err := NewGPIO("P1_7" /*cs*/, "P1_11" /*wr*/, "P1_26" /*reset*/, "P1_12", /*rs*/
-		"P1_15" /*db0*/, "P1_16" /*db1*/, "P1_18", /*db2*/
-		"P1_19" /*db3*/, "P1_22" /*db4*/, "P1_21" /*db5*/, "P1_23" /*db6*/, "P1_24" /*db7*/)
+	hd, err := NewGPIO("P1_7" /*cs*/, "P1_11" /*wr*/, "P1_12" /*reset*/, "P1_15" /*rs*/, "P1_40", /*rd*/
+		"P1_19" /*db0*/, "P1_21" /*db1*/, "P1_23", /*db2*/
+		"P1_16" /*db3*/, "P1_18" /*db4*/, "P1_22" /*db5*/, "P1_24" /*db6*/, "P1_26" /*db7*/)
 
 	if err != nil {
 		panic(err)
@@ -40,29 +40,11 @@ func main() {
 	fmt.Printf("hd.Clear using minutes %v\n", dis)
 
 	s = time.Now()
-	for i := 500; i > 0; i-- {
-	}
+	hd.Clear()
+	//hd.Ascii168(0, 0)
 	d := time.Now().Sub(s).Nanoseconds()
 	fmt.Printf("500 loop consume %v\n", d)
-
-	hd.Clear()
-	hd.Ascii168(0, 0)
-
-	/*
-		running := true
-		reader := bufio.NewReader(os.Stdin)
-
-		for i:=0;running;i++ {
-			fmt.Printf("show %v\n",i)
-			//GUI_Write32CnChar(100, 20, "¼¼¿ÆÖÐÆÕ", RED, BLACK);
-			hd.GUI_ShowPicture(74, 69, 151, 150);
-			data, _, _ := reader.ReadLine()
-			command := string(data)
-			if command == "stop" {
-				running = false
-			}
-		}
-	*/
+	time.Sleep(1 * time.Minute)
 }
 
 /*--  文字:  普  --*/
@@ -71,11 +53,11 @@ var ASCII168 = [...]byte{0x00, 0x40, 0x44, 0x54, 0x64, 0x45, 0x7E, 0x44, 0x44, 0
 	0x00, 0x00, 0x00, 0x00, 0xFF, 0x49, 0x49, 0x49, 0x49, 0x49, 0x49, 0x49, 0xFF, 0x00, 0x00, 0x00}
 
 func (hd *ST7565) Ascii168(xPos, yPos byte) {
-	hd.setPage(yPos, xPos)
+	hd.MoveCursor(yPos, xPos)
 	for i := 0; i < 8; i++ {
 		hd.WriteData(ASCII168[i])
 	}
-	hd.setPage(yPos+1, xPos)
+	hd.MoveCursor(yPos+1, xPos)
 	for i := 8; i < 16; i++ {
 		hd.WriteData(ASCII168[i])
 	}
@@ -106,18 +88,32 @@ func (hd *ST7565) Close() error {
 	return hd.Connection.Close()
 }
 
-func (hd *ST7565) setPage(page, column byte) error {
-	if page > 8 { //
+const (
+	// LCD Parameters
+	LCD_WIDTH  = 128
+	LCD_HEIGHT = 64
+	//lcdPageCount   ：according to datasheet(P42), not beyond 8 pages
+	lcdPageCount = 8
+	LCD_CONTRAST = 0x19
+)
+
+//# LCD Page Order
+
+func (hd *ST7565) MoveCursor(page, column byte) error {
+	if column >= LCD_WIDTH || column < 0 { //
+		return errors.New("according to datasheet(P43), beyond")
+	}
+	if page > lcdPageCount-1 || page < 0 { //
 		return errors.New("according to datasheet(P42), not beyond 8 pages")
 	}
+
+	//set page
 	page = page | cmdSetPageAddr
 	if err := hd.WriteCmd(page); err != nil {
 		return err
 	}
 
-	if column > 0x83 { //
-		return errors.New("too large,according to datasheet(P43), the column address increment is topped at 83H")
-	}
+	//set upper/lower bits of column
 	lsb := column & 0x0f
 	msb := (column & 0xf0) >> 4
 	msb = msb | cmdSetColumnUpper
@@ -129,6 +125,7 @@ func (hd *ST7565) setPage(page, column byte) error {
 		return err
 	}
 	return nil
+
 }
 
 // Clear clears the display and mode settings sets the cursor to the home position.
@@ -143,13 +140,14 @@ func (hd *ST7565) Clear() error {
 		//--当你的段初始化为0xA0时，X坐标从0x10,0x00到0x18,0x00,一共128位--//
 		//--在写入数据之后X坐标的坐标是会自动加1的，我们初始化使用0xA0所以--//
 		//--我们的X坐标从0x10,0x00开始---//
-		if err := hd.setPage(byte(i) /*page*/, 0x04 /*column*/); err != nil {
+		if err := hd.MoveCursor(byte(i) /*page*/, 0x00 /*column*/); err != nil {
 			return err
 		}
 
 		//--X轴有128位，就一共刷128次，X坐标会自动加1，所以我们不用再设置坐标--//
 		for j := 0; j < 128; j++ {
-			hd.WriteData(0x00) //如果设置背景为白色时，清屏选择0XFF
+			hd.WriteData(0xFF) //如果设置背景为白色时，清屏选择0XFF
+
 		}
 	}
 	hd.WriteCSX(embd.High)
@@ -176,11 +174,13 @@ type Connection interface {
 	WriteWR(val int) error
 	// fillDB8  fills the Db7~Db0 port
 	fillDB8(value byte) error
+
+	WriteRD(val int) error
 }
 
 // GPIOConnection   implements Connection using XXXX bus.
 type GPIOConnection struct {
-	CS, WR, RESET, DCX                     embd.DigitalPin
+	CS, WR, RESET, DCX, RD                 embd.DigitalPin
 	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 embd.DigitalPin
 }
 
@@ -199,10 +199,15 @@ func (hd *ST7565) WriteCmd(cmd byte) error {
 	if err = hd.WriteCSX(embd.Low); err != nil { //chip select,打开片选
 		return err
 	}
-	//hd.WriteRD(embd.High)  //disable read，读失能
+
+	if err = hd.WriteRD(embd.High); err != nil { //disable read，读失能
+		return err
+	}
+
 	if err = hd.WriteDCX(embd.Low); err != nil { //select command，选择命令
 		return err
 	}
+
 	if err = hd.WriteWR(embd.Low); err != nil { //select write，选择写模式
 		return err
 	}
@@ -210,6 +215,7 @@ func (hd *ST7565) WriteCmd(cmd byte) error {
 	//_nop_();
 	//_nop_();
 	value := byte(cmd)
+
 	if err = hd.fillDB8(value); err != nil {
 		return err
 	}
@@ -218,6 +224,7 @@ func (hd *ST7565) WriteCmd(cmd byte) error {
 	//_nop_();
 	//_nop_();
 
+	usDealy(5)
 	if err = hd.WriteWR(embd.High); err != nil { //command writing ，写入命令
 		return err
 	}
@@ -225,21 +232,38 @@ func (hd *ST7565) WriteCmd(cmd byte) error {
 }
 
 // WriteData for st7565
-func (hd *ST7565) WriteData(dat byte) {
+func (hd *ST7565) WriteData(dat byte) error {
 
-	hd.WriteCSX(embd.Low) //chip select,打开片选
-	//hd.WriteRD(embd.High)  //disable read，读失能
-	hd.WriteDCX(embd.High) //select data，选择数据
-	hd.WriteWR(embd.Low)   //select write，选择写模式
+	if err := hd.WriteCSX(embd.Low); err != nil { //chip select,打开片选
+		return err
+	}
+
+	if err := hd.WriteRD(embd.High); err != nil { //disable read，读失能
+		return err
+	}
+
+	if err := hd.WriteDCX(embd.High); err != nil { //select data，选择数据
+		return err
+	}
+
+	if err := hd.WriteWR(embd.Low); err != nil { //select write，选择写模式
+		return err
+	}
 
 	//_nop_();
 	//_nop_();
 
-	hd.fillDB8(dat) //put data，放置数据
+	if err := hd.fillDB8(dat); err != nil { //put data，放置数据
+		return err
+	}
+
 	//_nop_();
 	//_nop_();
 
+	usDealy(5)
 	hd.WriteWR(embd.High) //data writing，写数据
+
+	return nil
 }
 
 /****************************************************************************
@@ -296,31 +320,35 @@ const (
 	cmdSetStaticREG     = 0x00
 )
 
-// Init   initialize the st7565, the command is from the datasheet
-func (hd *ST7565) Init() error {
-	//	uchar i;
-	//	LCD12864_RSET = 0;
-	//	for (i=0; i<100; i++);
-	//	LCD12864_CS = 0;
-	//	LCD12864_RSET = 1;
+func (hd *ST7565) reset() error {
 	functions := []func() error{
 		func() error { return hd.WriteReset(embd.Low) },
-		func() error { return hd.WriteCSX(embd.Low) },
 		func() error { return hd.WriteReset(embd.High) },
 	}
 	for _, f := range functions {
 		if err := f(); err != nil {
 			return err
 		}
-		//time.Sleep(delay)
 	}
+	return nil
+}
+
+// Init   initialize the st7565, the command is from the datasheet
+func (hd *ST7565) Init() error {
+	if err := hd.WriteCSX(embd.Low); err != nil {
+		return err
+	}
+	if err := hd.reset(); err != nil {
+		return err
+	}
+	usDealy(10)
 
 	if err := hd.WriteCmd(cmdInternalReset); err != nil {
 		return err
 	}
-	time.Sleep(1 * time.Millisecond)
 
-	functions = []func() error{
+	//https://github.com/rdagger/Pi-ST7565/blob/master/st7565.py
+	functions := []func() error{
 		func() error { return hd.WriteCmd(cmdSetADCReverse) },   //--表格第8个命令，0xA0段（左右）方向选择正常方向（0xA1为反方向）--//
 		func() error { return hd.WriteCmd(cmdSetComReverse) },   //--表格第15个命令，0xC8普通(上下)方向选择选择反向，0xC0为正常方向--//
 		func() error { return hd.WriteCmd(cmdSetDispNormal) },   //--表格第9个命令，0xA6为设置字体为黑色，背景为白色.--0xA7为设置字体为白色，背景为黑色-//
@@ -340,18 +368,24 @@ func (hd *ST7565) Init() error {
 		if err != nil {
 			return err
 		}
-		//time.Sleep(delay)
 	}
-
-	//time.Sleep(delay)
 
 	return nil
 }
 
+/*
+   """Constructor for ST7565.
+      Args:
+          dcx (int): a0 Register select address GPIO pin
+          cs (int):  Chip select GPIO pin
+          rst (int): Reset GPIO pin
+          rgb (Optional [int]): RGB backlight GPIO pin list. Default is None.
+      """
+*/
 // NewGPIO creates a new R61526 connected by XXX bus.
 func NewGPIO(
-	cs, wr, reset, dcx, db0, db1, db2, db3, db4, db5, db6, db7 interface{}) (*ST7565, error) {
-	pinKeys := []interface{}{cs, wr, reset, dcx, db0, db1, db2, db3, db4, db5, db6, db7}
+	cs, wr, reset, dcx, rd, db0, db1, db2, db3, db4, db5, db6, db7 interface{}) (*ST7565, error) {
+	pinKeys := []interface{}{cs, wr, reset, dcx, rd, db0, db1, db2, db3, db4, db5, db6, db7}
 	pins := [13]embd.DigitalPin{}
 	for idx, key := range pinKeys {
 		if key == nil {
@@ -394,17 +428,19 @@ func NewGPIO(
 			pins[9],
 			pins[10],
 			pins[11],
+			pins[12],
 		))
 }
 
 // newGPIOConnection returns a new Connection based on a 4-bit GPIO bus.
-func newGPIOConnection(cs, wr, reset, dcx, db0, db1, db2, db3,
+func newGPIOConnection(cs, wr, reset, dcx, rd, db0, db1, db2, db3,
 	db4, db5, db6, db7 embd.DigitalPin) *GPIOConnection {
 	return &GPIOConnection{
 		CS:    cs,
 		WR:    wr,
 		RESET: reset,
 		DCX:   dcx,
+		RD:    rd,
 		DB0:   db0,
 		DB1:   db1,
 		DB2:   db2,
@@ -415,7 +451,7 @@ func newGPIOConnection(cs, wr, reset, dcx, db0, db1, db2, db3,
 		DB7:   db7}
 }
 
-// newHX8357 creates a new R61526 connected by a Connection bus.
+// newHX8357 creates a new St7565 connected by a Connection bus.
 func newSt7565(bus Connection) (*ST7565, error) {
 	controller := &ST7565{
 		Connection: bus,
@@ -478,47 +514,6 @@ func (conn *GPIOConnection) fillDB8(value byte) error {
 	return nil
 }
 
-// to-do
-func (conn *GPIOConnection) write8(iscmd bool, value byte) error {
-
-	v := embd.Low
-	if iscmd == false {
-		v = embd.High
-	}
-
-	functions := []func() error{
-		func() error { return conn.WR.Write(embd.High) }, //初始化WR
-		func() error { return conn.CS.Write(embd.Low) },  //打开片选
-		// func() error { return conn.RD.Write(embd.High) }, // invalid RDX. we set it allways high
-		func() error { return conn.DCX.Write(v) }, //indicate the value  is command or data
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := conn.fillDB8(value); err != nil {
-		return err
-	}
-
-	// write command through rising edage of WRX
-	functions = []func() error{
-		func() error { return conn.WR.Write(embd.Low) }, //写入时序
-		func() error { return conn.WR.Write(embd.High) },
-		func() error { return conn.CS.Write(embd.High) }, //关闭片选
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // WriteReset  write value to RESET gpio port
 func (conn *GPIOConnection) WriteReset(val int) error {
 	return conn.RESET.Write(val)
@@ -537,6 +532,9 @@ func (conn *GPIOConnection) WriteDCX(val int) error {
 // WriteWR  write value to WR gpio port
 func (conn *GPIOConnection) WriteWR(val int) error {
 	return conn.WR.Write(val)
+}
+func (conn *GPIOConnection) WriteRD(val int) error {
+	return conn.RD.Write(val)
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -576,3 +574,8 @@ func (hd *ST7565) GUI_ShowPicture(x, y uint16, wide, high uint16) {
 	}
 }
 */
+
+func usDealy(val time.Duration) {
+	time.Sleep(val * time.Microsecond)
+	//Millisecond
+}
