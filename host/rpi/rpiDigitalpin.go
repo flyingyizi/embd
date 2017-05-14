@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -160,6 +161,9 @@ func (p *rpiDigitPin) init() error {
 	}
 
 	var err error
+	if err = p.export(); err != nil {
+		return err
+	}
 	//if p.dir, err = p.directionFile(); err != nil {
 	//	return err
 	//}
@@ -173,6 +177,29 @@ func (p *rpiDigitPin) init() error {
 	p.initialized = true
 
 	return nil
+}
+
+func (p *rpiDigitPin) export() error {
+	exporter, err := os.OpenFile("/sys/class/gpio/export", os.O_WRONLY, os.ModeExclusive)
+	if err != nil {
+		return err
+	}
+	defer exporter.Close()
+	_, err = exporter.WriteString(strconv.Itoa(p.n))
+	if e, ok := err.(*os.PathError); ok && e.Err == syscall.EBUSY {
+		return nil // EBUSY -> the pin has already been exported
+	}
+	return err
+}
+
+func (p *rpiDigitPin) unexport() error {
+	unexporter, err := os.OpenFile("/sys/class/gpio/unexport", os.O_WRONLY, os.ModeExclusive)
+	if err != nil {
+		return err
+	}
+	defer unexporter.Close()
+	_, err = unexporter.WriteString(strconv.Itoa(p.n))
+	return err
 }
 
 func (p *rpiDigitPin) basePath() string {
@@ -377,9 +404,9 @@ func (p *rpiDigitPin) Close() error {
 	if err := p.activeLow.Close(); err != nil {
 		return err
 	}
-	//if err := p.unexport(); err != nil {
-	//	return err
-	//}
+	if err := p.unexport(); err != nil {
+		return err
+	}
 
 	p.initialized = false
 
