@@ -63,7 +63,7 @@ func modify(hd *st7565p.LCD) error {
 		if command == "gushi" {
 			writegushi(hd)
 		} else if ok == nil {
-			hd.Writeascii168Str("hello my word, it is ", 0, byte(abb))
+			hd.Writeascii168Str("thello my word, it is ", 0, byte(abb))
 		}
 
 		//if err := hd.SetBoosterRatioMode(byte(abb)); err != nil {
