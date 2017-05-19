@@ -20,22 +20,9 @@ type LCD struct {
 	ST7565
 }
 
-const (
-	// LCD Parameters
-	LcdWidth  = 128
-	LcdHeight = 64
-	//lcdPageCount   ：according to datasheet(P42), not beyond 8 pages
-	lcdPageCount = 8
-	LCD_CONTRAST = 0x19
-)
-
-//# LCD Page Order
-//var pagemap = [...]byte{3, 2, 1, 0, 7, 6, 5, 4}
-var pagemap = [...]byte{0, 1, 2, 3, 4, 5, 6, 7}
-
-//SetCursor
+//SetCursor     写坐标函数
 func (hd *LCD) SetCursor(x /*column*/, y /*page*/ byte) error {
-	if x >= LcdWidth || x < 0 { //
+	if x >= LCD_WIDTH || x < 0 { //
 		return errors.New("according to datasheet(P43), beyond")
 	}
 	if y > lcdPageCount-1 || y < 0 { //
@@ -65,24 +52,75 @@ func (hd *LCD) SetCursor(x /*column*/, y /*page*/ byte) error {
 // Clear clears the display and mode settings sets the cursor to the home position.
 func (hd *LCD) Clear() error {
 
+	//--表格第3个命令，设置Y的坐标--//
+	//--Y轴有64个，一个坐标8位，也就是有8个坐标--//
+	//所以一般我们使用的也就是从0xB0到0x07,就够了--//
 	for i := 0; i < 8; i++ {
+		//--表格第4个命令，设置X坐标--//
+		//--当你的段初始化为0xA1时，X坐标从0x10,0x04到0x18,0x04,一共128位--//
+		//--当你的段初始化为0xA0时，X坐标从0x10,0x00到0x18,0x00,一共128位--//
+		//--在写入数据之后X坐标的坐标是会自动加1的，我们初始化使用0xA0所以--//
+		//--我们的X坐标从0x10,0x00开始---//
 		if err := hd.SetCursor(0, byte(i)); err != nil {
 			return err
 		}
 
+		//--X轴有128位，就一共刷128次，X坐标会自动加1，所以我们不用再设置坐标--//
 		for j := 0; j < 128; j++ {
-			hd.WriteData(0x00)
+			hd.WriteData(0x00) //如果设置背景为白色时，清屏选择0XFF
 
 		}
 	}
 	hd.WriteCS(embd.High)
+	//GPIO.output(LCD_CS, True)
+	//fmt.Println("leave Clear")
 
 	return nil
 }
 
+// ST7565 represents an ST7565-compatible character LCD controller.
+type ST7565 interface {
+	Close() error
+
+	WriteCmd(cmd byte) error
+	WriteCS(val int) error
+	WriteData(cmd byte) error
+	//eMode entryMode
+	//dMode displayMode
+	//fMode functionMode
+}
+
+func NewGpio(m interface{}) (ST7565, error) {
+	switch inst := m.(type) {
+	case LCD8080:
+		if con, err := newGPIOPins(inst.CS, inst.WR, inst.RST, inst.RS, inst.RD,
+			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
+			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
+			inst.Connection = con
+			if err := inst.Init(); err != nil {
+				return nil, fmt.Errorf("init fail")
+			}
+			return &inst, nil
+		}
+	case Map6800:
+		//todo
+		//		if con, err := newGPIOPins(inst.CS, inst.WR, inst.RST, inst.RS, inst.RD,
+		//			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
+		//			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
+		//			inst.Connection = con
+		//			if err := inst.Init(); err != nil {
+		//				return nil, fmt.Errorf("init fail")
+		//			}
+		//			return &inst, nil
+		//		}
+		return nil, fmt.Errorf("unknow")
+	}
+	return nil, fmt.Errorf("unknow")
+}
+
 //SetVolumeMode    The Electronic Volume Mode Set  , datasheet p47
 //for display contrast ratio
-func (hd *LCD) SetVolumeMode(levl /*voltage levels*/ byte) error {
+func (hd *LCD8080) SetVolumeMode(levl /*voltage levels*/ byte) error {
 	if levl > 0x3F || levl < 0 { //
 		return errors.New("according to datasheet(P47), beyond")
 	}
@@ -98,7 +136,7 @@ func (hd *LCD) SetVolumeMode(levl /*voltage levels*/ byte) error {
 
 //SetResistorRATIOMode    V0 Voltage Regulator Internal Resistor Ratio Set, , datasheet p47
 //for display contrast ratio
-func (hd *LCD) SetResistorRATIOMode(ratio /*resistor ratio*/ byte) error {
+func (hd *LCD8080) SetResistorRATIOMode(ratio /*resistor ratio*/ byte) error {
 	if ratio > 7 || ratio < 0 { //
 		return errors.New("according to datasheet(P47), beyond")
 	}
@@ -110,7 +148,7 @@ func (hd *LCD) SetResistorRATIOMode(ratio /*resistor ratio*/ byte) error {
 }
 
 //SetPowerControlMode     refer datasheet p47
-func (hd *LCD) SetPowerControlMode(boosterON, VRON, VFON bool) error {
+func (hd *LCD8080) SetPowerControlMode(boosterON, VRON, VFON bool) error {
 	//refer datasheet p31
 	var d2, d1, d0 byte
 	if boosterON {
@@ -131,7 +169,7 @@ func (hd *LCD) SetPowerControlMode(boosterON, VRON, VFON bool) error {
 }
 
 //SetBoosterRatioMode      ratio: 0-->2x/3x/4x;  1->5x; 3->6x
-func (hd *LCD) SetBoosterRatioMode(ratio byte) error {
+func (hd *LCD8080) SetBoosterRatioMode(ratio byte) error {
 	if ratio > 3 || ratio < 0 { //
 		return errors.New("according to datasheet(P49), beyond")
 	}
@@ -145,58 +183,27 @@ func (hd *LCD) SetBoosterRatioMode(ratio byte) error {
 	return nil
 }
 
-// ST7565 represents an ST7565-compatible character LCD controller.
-type ST7565 interface {
-	Close() error
-
-	WriteCmd(cmd byte) error
-	WriteCS(val int) error
-	WriteData(cmd byte) error
-	//eMode entryMode
-	//dMode displayMode
-	//fMode functionMode
+var cmd2s = [...]byte{
+	(cmdDisplyOFF),        //将液晶屏的显示关掉
+	(cmdSetADCNormal),     //--表格第8个命令，0xA0段（左右）方向选择正常方向（0xA1为反方向）--//cmdSetADCReverse
+	(cmdSetComReverse),    //--表格第15个命令，0xC8普通(上下)方向选择选择反向，0xC0为正常方向--//
+	(cmdSetDispNormal),    //--表格第9个命令，0xA6为设置字体为黑色，背景为白色.--0xA7为设置字体为白色，背景为黑色-//
+	(cmdSetAllptsNormal),  //--表格第10个命令，0xA4像素正常显示，0xA5像素全开--//
+	(cmdSetLCDBias7),      ////--表格第11个命令，0xA3偏压为1/7,0xA2偏压为1/9--//  ？？？
+	(cmdSetDispStartLine), //--表格第2个命令  0x40，设置显示开始位置--//
+	(cmdDisplyON),         //--表格第1个命令，开启显示--//
 }
 
-//NewGpio
-//m: input LCD8080 or LCD6800
-//cmds: initial command ,if it is nil, it will initilized with defaultInitCmd
-func NewGpio(m interface{}, cmds ...byte) (*LCD, error) {
-	if cmds == nil {
-		cmds = defaultInitCmd
-	}
-
-	var lcd LCD
-	switch inst := m.(type) {
-	case LCD8080:
-		if con, err := newGPIOPins(inst.CS, inst.WR, inst.RST, inst.RS, inst.RD,
-			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
-			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
-			inst.Connection = con
-			if err := inst.Init(cmds); err != nil {
-				return nil, fmt.Errorf("init fail")
-			}
-			lcd.ST7565 = &inst
-			return &lcd, nil
-		}
-	case LCD6800:
-		//todo
-		//if con, err := newGPIOPins(inst.CS, inst.WR, inst.RST, inst.RS, inst.RD,
-		//	inst.DB0, inst.DB1, inst.DB2, inst.DB3,
-		//	inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
-		//	inst.Connection = con
-		//	if err := inst.Init(); err != nil {
-		//		return nil, fmt.Errorf("init fail")
-		//	}
-		//	lcd.ST7565 = &inst
-		//	return &lcd, nil
-		//}
-		return nil, fmt.Errorf("unknow")
-	}
-	return nil, fmt.Errorf("unknow")
+var cmd1s = [...]byte{
+	(cmdDisplyOFF),     //将液晶屏的显示关掉
+	(cmdSetLCDBias7),   //设置偏压比
+	(cmdSetADCNormal),  //设置SEG输出方向
+	(cmdSetComReverse), //设置公共端输出扫描方向
+	(cmdDisplyON),      //显示开
 }
 
 // Init   initialize the st7565, the command is from the datasheet
-func (hd *LCD8080) Init(cmds []byte) error {
+func (hd *LCD8080) Init() error {
 	if err := hd.WriteCS(embd.Low); err != nil {
 		return err
 	}
@@ -204,7 +211,22 @@ func (hd *LCD8080) Init(cmds []byte) error {
 		return err
 	}
 
-	for _, cmd := range cmds {
+	//for display contrast ratio
+	if err := hd.SetResistorRATIOMode(5 /*resistor ratio*/); err != nil {
+		return err
+	}
+	if err := hd.SetVolumeMode(20); err != nil {
+		return err
+	}
+	//开启相关电压
+	hd.SetPowerControlMode(true /*boosterON8*/, true /*VRON*/, true /*VFON*/)
+
+	//--0xF801,选择增压为5X，
+	hd.SetBoosterRatioMode(1)
+
+	//https://github.com/rdagger/Pi-ST7565/blob/master/st7565.py
+
+	for _, cmd := range cmd1s {
 		if err := hd.WriteCmd(cmd); err != nil {
 			return err
 		}
@@ -218,8 +240,21 @@ func (hd *LCD8080) Close() error {
 	return hd.Connection.Close()
 }
 
+const (
+	// LCD Parameters
+	LCD_WIDTH  = 128
+	LCD_HEIGHT = 64
+	//lcdPageCount   ：according to datasheet(P42), not beyond 8 pages
+	lcdPageCount = 8
+	LCD_CONTRAST = 0x19
+)
+
+//# LCD Page Order
+//var pagemap = [...]byte{3, 2, 1, 0, 7, 6, 5, 4}
+var pagemap = [...]byte{0, 1, 2, 3, 4, 5, 6, 7}
+
 // # Initialize back_buffer
-var back_buffer = [LcdHeight][LcdWidth]byte{}
+var back_buffer = [LCD_HEIGHT][LCD_WIDTH]byte{}
 
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////
@@ -239,7 +274,8 @@ type LCD8080 struct {
 }
 
 var (
-	DefaultMap8080 LCD8080 = LCD8080{
+	// MJKDZPinMap is the standard pin mapping for an MJKDZ-based I²C backpack.
+	DefaultMap LCD8080 = LCD8080{
 		CS:  "P1_7",
 		WR:  "P1_11",
 		RST: "P1_12",
@@ -247,41 +283,42 @@ var (
 		RD:  "P1_40",
 		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
 		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
-	DefaultMap6800 LCD6800 = LCD6800{
-		CS:  "P1_7",
-		RW:  "P1_11",
-		RST: "P1_12",
-		A0:  "P1_15",
-		E:   "P1_40",
-		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
-		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
 )
 
-// WriteCmd for 8080 MPU
+type Map6800 struct {
+	Connection
+	CS, RW, RST, A0, E                     interface{}
+	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 interface{}
+}
+
+// WriteCmd for st7565
 func (hd *LCD8080) WriteCmd(cmd byte) error {
 	var err error
 
-	if err = hd.WriteCS(embd.Low); err != nil { //chip select
+	if err = hd.WriteCS(embd.Low); err != nil { //chip select,打开片选
 		return err
 	}
 
-	if err = hd.writeRD(embd.High); err != nil { //disable read
+	if err = hd.writeRD(embd.High); err != nil { //disable read，读失能
 		return err
 	}
 
-	if err = hd.writeRS(embd.Low); err != nil { //select command
+	if err = hd.writeRS(embd.Low); err != nil { //select command，选择命令
 		return err
 	}
 
-	if err = hd.writeWR(embd.Low); err != nil { //select write
+	if err = hd.writeWR(embd.Low); err != nil { //select write，选择写模式
 		return err
 	}
 
 	//_nop_();
 	//_nop_();
-	if err = hd.fillDB8(cmd); err != nil {
+	value := byte(cmd)
+
+	if err = hd.fillDB8(value); err != nil {
 		return err
 	}
+
 	usDealy(5)
 	//trigger WR rising edge to latch into LCD
 	if err = hd.writeWR(embd.High); err != nil { //command writing ，写入命令
@@ -290,7 +327,7 @@ func (hd *LCD8080) WriteCmd(cmd byte) error {
 	return nil
 }
 
-// WriteData for 8080 MPU
+// WriteData for st7565
 func (hd *LCD8080) WriteData(dat byte) error {
 	if err := hd.WriteCS(embd.Low); err != nil { //chip select,打开片选
 		return err
@@ -324,6 +361,11 @@ func (hd *LCD8080) WriteData(dat byte) error {
 
 	return nil
 }
+
+/****************************************************************************
+*      * wide  图片宽度
+*      * high  图片高度
+****************************************************************************/
 
 func (hd *LCD8080) reset() error {
 	seq := []int{embd.Low, embd.High}
@@ -377,143 +419,6 @@ func (conn *LCD8080) fillDB8(value byte) error {
 	return nil
 }
 
-///////////////////////////////////////////////////////////////////
-
-type LCD6800 struct {
-	Connection
-	CS, RW, RST, A0, E                     interface{}
-	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 interface{}
-}
-
-// Init   initialize the st7565, the command is from the datasheet
-func (hd *LCD6800) Init(cmds []byte) error {
-	if err := hd.WriteCS(embd.Low); err != nil {
-		return err
-	}
-	if err := hd.reset(); err != nil {
-		return err
-	}
-
-	for _, cmd := range cmds {
-		if err := hd.WriteCmd(cmd); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Close closes the underlying Connection.
-func (hd *LCD6800) Close() error {
-	return hd.Connection.Close()
-}
-
-// WriteCmd for 8080 MPU
-func (hd *LCD6800) WriteCmd(cmd byte) error {
-	var err error
-
-	if err = hd.WriteCS(embd.Low); err != nil { //chip select
-		return err
-	}
-
-	if err = hd.writeRD(embd.High); err != nil { //disable read
-		return err
-	}
-
-	if err = hd.writeRS(embd.Low); err != nil { //select command
-		return err
-	}
-
-	if err = hd.writeWR(embd.Low); err != nil { //select write
-		return err
-	}
-
-	//_nop_();
-	//_nop_();
-	if err = hd.fillDB8(cmd); err != nil {
-		return err
-	}
-	usDealy(5)
-	//trigger WR rising edge to latch into LCD
-	if err = hd.writeWR(embd.High); err != nil { //command writing ，写入命令
-		return err
-	}
-	return nil
-}
-
-// WriteData for 8080 MPU
-func (hd *LCD6800) WriteData(dat byte) error {
-	if err := hd.WriteCS(embd.Low); err != nil { //chip select,打开片选
-		return err
-	}
-
-	if err := hd.writeRD(embd.High); err != nil { //disable read，读失能
-		return err
-	}
-
-	if err := hd.writeRS(embd.High); err != nil { //select data，选择数据
-		return err
-	}
-
-	if err := hd.writeWR(embd.Low); err != nil { //select write，选择写模式
-		return err
-	}
-
-	//_nop_();
-	//_nop_();
-
-	if err := hd.fillDB8(dat); err != nil { //put data，放置数据
-		return err
-	}
-
-	//_nop_();
-	//_nop_();
-
-	usDealy(5)
-	//trigger WR rising edge to latch into LCD
-	hd.writeWR(embd.High)
-
-	return nil
-}
-
-func (hd *LCD6800) writeReset(val int) error {
-	return hd.Write(hd.RST, val)
-}
-func (hd *LCD6800) writeRW(val int) error {
-	return hd.Write(hd.RW, val)
-}
-func (hd *LCD6800) writeA0(val int) error {
-	return hd.Write(hd.A0, val)
-}
-func (hd *LCD6800) writeE(val int) error {
-	return hd.Write(hd.E, val)
-}
-func (hd *LCD6800) WriteCS(val int) error {
-	return hd.Write(hd.CS, val)
-}
-
-//  fillDB write value to DB0~7 GPIO
-func (conn *LCD6800) fillDB8(value byte) error {
-	functions := []func() error{
-		func() error { return conn.Write(conn.DB0, int(value&0x01)) },
-		func() error { return conn.Write(conn.DB1, int((value>>1)&0x01)) },
-		func() error { return conn.Write(conn.DB2, int((value>>2)&0x01)) },
-		func() error { return conn.Write(conn.DB3, int((value>>3)&0x01)) },
-		func() error { return conn.Write(conn.DB4, int((value>>4)&0x01)) },
-		func() error { return conn.Write(conn.DB5, int((value>>5)&0x01)) },
-		func() error { return conn.Write(conn.DB6, int((value>>6)&0x01)) },
-		func() error { return conn.Write(conn.DB7, int((value>>7)&0x01)) },
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-//commands from st7565 datasheet
 const (
 	//display on/of, datasheet P42
 	cmdDisplyOFF = 0xAE
@@ -585,28 +490,6 @@ const (
 	//Booster Ratio , datasheet p49
 	cmdSetBoosterRatio = 0xF8
 )
-
-var defaultInitCmd []byte = []byte{
-	(cmdSetADCNormal),  //设置SEG输出方向
-	(cmdSetComReverse), //设置公共端输出扫描方向
-
-	cmdSetVolumeFIRST,
-	0x14,
-
-	cmdSetResistorRATIO | 5,
-
-	cmdSetPowerControl | 4 | 2 | 1,
-
-	cmdSetBoosterRatio,
-	0x1,
-
-	cmdSetDispStartLine | 0, //   = 0x40 //0x40~0x7F, map 0 to 63
-
-	cmdDisplyOFF,
-
-	(cmdSetLCDBias7), //设置偏压比
-	(cmdDisplyON),
-}
 
 type GPIOConnection struct {
 	// Describers is a global list of registered GPIO.
@@ -680,6 +563,12 @@ func (ll *GPIOConnection) Write(pin interface{}, val int) error {
 	return digitalPin.Write(val)
 }
 
+///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
+//https://github.com/Bodmer/TFT_HX8357
+
+//https://github.com/baran0119/ALCATEL_LCM/tree/master/OT_903D/mediatek/custom/common/kernel/lcm/r61526
+
 func usDealy(val time.Duration) {
 	time.Sleep(val * time.Microsecond)
 	//Millisecond
@@ -693,7 +582,9 @@ func usDealy(val time.Duration) {
  * @note This is a 256 character font. Delete glyphs in order to save Flash
  */
 /* Controls the definition of the Font array and character spcing */
-var Full_font = []byte{
+//#define FULL_FONT
+
+var full_font = []byte{
 	0x0, 0x0, 0x0, 0x0, 0x0, /* ASC(00) */
 	0x7C, 0xDA, 0xF2, 0xDA, 0x7C, /* ASC(01) */
 	0x7C, 0xD6, 0xF2, 0xD6, 0x7C, /* ASC(02) */
@@ -855,7 +746,7 @@ var Full_font = []byte{
 	0x0, 0x98, 0xB8, 0xE8, 0x48, /* ASC(253) */
 	0x0, 0x3C, 0x3C, 0x3C, 0x3C /* ASC(254) */}
 
-var Gca_font = []byte{
+var gca_font = []byte{
 	0x0, 0x0, 0x0, 0x0, 0x0, /* ASC(32) */
 	0x0, 0x0, 0xFA, 0x0, 0x0, /* ASC(33) */
 	0x0, 0xE0, 0x0, 0xE0, 0x0, /* ASC(34) */

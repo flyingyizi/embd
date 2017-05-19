@@ -1,4 +1,4 @@
-package st7565
+package main
 
 //http://www.nxp.com/documents/data_sheet/PCF8574.pdf
 
@@ -26,9 +26,7 @@ func main() {
 	}
 	defer embd.CloseGPIO()
 
-	hd, err := NewGPIO("P1_7" /*cs*/, "P1_11" /*wr*/, "P1_12" /*reset*/, "P1_15" /*rs*/, "P1_40", /*rd*/
-		"P1_19" /*db0*/, "P1_21" /*db1*/, "P1_23", /*db2*/
-		"P1_16" /*db3*/, "P1_18" /*db4*/, "P1_22" /*db5*/, "P1_24" /*db6*/, "P1_26" /*db7*/)
+	hd, err := NewGpio(DefaultMap8080)
 
 	if err != nil {
 		panic(err)
