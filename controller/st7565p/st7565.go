@@ -1,8 +1,5 @@
-package st7565
+package st7565p
 
-//http://www.nxp.com/documents/data_sheet/PCF8574.pdf
-
-//http://www.rototron.info/raspberry-pi-graphics-lcd-display-tutorial/
 import (
 	"time"
 
@@ -17,7 +14,7 @@ import (
 
  */
 type LCD struct {
-	ST7565
+	St7565
 }
 
 const (
@@ -26,7 +23,6 @@ const (
 	LcdHeight = 64
 	//lcdPageCount   ：according to datasheet(P42), not beyond 8 pages
 	lcdPageCount = 8
-	LCD_CONTRAST = 0x19
 )
 
 //# LCD Page Order
@@ -44,7 +40,7 @@ func (hd *LCD) SetCursor(x /*column*/, y /*page*/ byte) error {
 
 	//set page
 	pagexxx := pagemap[y] | cmdSetPageAddr
-	if err := hd.WriteCmd(pagexxx); err != nil {
+	if err := hd.St7565.WriteCmd(pagexxx); err != nil {
 		return err
 	}
 
@@ -52,11 +48,11 @@ func (hd *LCD) SetCursor(x /*column*/, y /*page*/ byte) error {
 	lsb := x & 0x0f
 	msb := (x & 0xf0) >> 4
 	msb = msb | cmdSetColumnUpper
-	if err := hd.WriteCmd(msb); err != nil {
+	if err := hd.St7565.WriteCmd(msb); err != nil {
 		return err
 	}
 	lsb = lsb | cmdSetColumnLower
-	if err := hd.WriteCmd(lsb); err != nil {
+	if err := hd.St7565.WriteCmd(lsb); err != nil {
 		return err
 	}
 	return nil
@@ -71,11 +67,10 @@ func (hd *LCD) Clear() error {
 		}
 
 		for j := 0; j < 128; j++ {
-			hd.WriteData(0x00)
+			hd.St7565.WriteData(0x00)
 
 		}
 	}
-	hd.WriteCS(embd.High)
 
 	return nil
 }
@@ -136,29 +131,64 @@ func (hd *LCD) SetBoosterRatioMode(ratio byte) error {
 		return errors.New("according to datasheet(P49), beyond")
 	}
 
-	if err := hd.WriteCmd(cmdSetBoosterRatio); err != nil {
+	if err := hd.St7565.WriteCmd(cmdSetBoosterRatio); err != nil {
 		return err
 	}
-	if err := hd.WriteCmd(ratio); err != nil {
+	if err := hd.St7565.WriteCmd(ratio); err != nil {
 		return err
 	}
 	return nil
 }
 
+// Init   initialize the st7565, the command is from the datasheet
+//special, if the cmd is 0xff, the func will deay 5us
+func (hd *LCD) Init(cmds []byte) error {
+
+	if err := hd.St7565.WriteCS(embd.Low); err != nil { //chip select
+		return err
+	}
+
+	seq := []int{embd.Low, embd.High}
+	for _, sig := range seq {
+		if err := hd.St7565.WriteRST(sig); err != nil {
+			return err
+		}
+	}
+	usDealy(10)
+	if err := hd.St7565.WriteCmd(cmdInternalReset); err != nil {
+		return err
+	}
+	usDealy(5)
+
+	for _, cmd := range cmds {
+		if cmd == 0xff {
+			usDealy(5)
+		} else if err := hd.St7565.WriteCmd(cmd); err != nil {
+			return err
+		}
+	}
+
+	hd.St7565.WriteCS(embd.High) //diable chip select
+
+	return nil
+}
+
+func (hd *LCD) Close() error {
+	return hd.St7565.Close()
+}
+
 // ST7565 represents an ST7565-compatible character LCD controller.
-type ST7565 interface {
+type St7565 interface {
 	Close() error
 
 	WriteCmd(cmd byte) error
 	WriteCS(val int) error
+	WriteRST(val int) error
 	WriteData(cmd byte) error
-	//eMode entryMode
-	//dMode displayMode
-	//fMode functionMode
 }
 
 //NewGpio
-//m: input LCD8080 or LCD6800
+//m: input Parallel8080 or Parallel6800
 //cmds: initial command ,if it is nil, it will initilized with defaultInitCmd
 func NewGpio(m interface{}, cmds ...byte) (*LCD, error) {
 	if cmds == nil {
@@ -167,54 +197,37 @@ func NewGpio(m interface{}, cmds ...byte) (*LCD, error) {
 
 	var lcd LCD
 	switch inst := m.(type) {
-	case LCD8080:
+	case Parallel8080:
 		if con, err := newGPIOPins(inst.CS, inst.WR, inst.RST, inst.RS, inst.RD,
 			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
 			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
 			inst.Connection = con
-			if err := inst.Init(cmds); err != nil {
+			lcd.St7565 = &inst
+			if err := lcd.Init(cmds); err != nil {
 				return nil, fmt.Errorf("init fail")
 			}
-			lcd.ST7565 = &inst
+
 			return &lcd, nil
 		}
-	case LCD6800:
+	case Parallel6800:
 		//todo
-		//if con, err := newGPIOPins(inst.CS, inst.WR, inst.RST, inst.RS, inst.RD,
-		//	inst.DB0, inst.DB1, inst.DB2, inst.DB3,
-		//	inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
-		//	inst.Connection = con
-		//	if err := inst.Init(); err != nil {
-		//		return nil, fmt.Errorf("init fail")
-		//	}
-		//	lcd.ST7565 = &inst
-		//	return &lcd, nil
-		//}
-		return nil, fmt.Errorf("unknow")
+		if con, err := newGPIOPins(inst.CS, inst.RW, inst.RST, inst.A0, inst.E,
+			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
+			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
+			inst.Connection = con
+			lcd.St7565 = &inst
+			if err := lcd.Init(cmds); err != nil {
+				return nil, fmt.Errorf("init fail")
+			}
+
+			return &lcd, nil
+		}
 	}
 	return nil, fmt.Errorf("unknow")
 }
 
-// Init   initialize the st7565, the command is from the datasheet
-func (hd *LCD8080) Init(cmds []byte) error {
-	if err := hd.WriteCS(embd.Low); err != nil {
-		return err
-	}
-	if err := hd.reset(); err != nil {
-		return err
-	}
-
-	for _, cmd := range cmds {
-		if err := hd.WriteCmd(cmd); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Close closes the underlying Connection.
-func (hd *LCD8080) Close() error {
+func (hd *Parallel8080) Close() error {
 	return hd.Connection.Close()
 }
 
@@ -232,14 +245,14 @@ type Connection interface {
 	Write(pin interface{}, val int) error
 }
 
-type LCD8080 struct {
+type Parallel8080 struct {
 	Connection
 	CS, WR, RST, RS, RD                    interface{}
 	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 interface{}
 }
 
 var (
-	DefaultMap8080 LCD8080 = LCD8080{
+	DefaultMap8080 Parallel8080 = Parallel8080{
 		CS:  "P1_7",
 		WR:  "P1_11",
 		RST: "P1_12",
@@ -247,7 +260,7 @@ var (
 		RD:  "P1_40",
 		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
 		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
-	DefaultMap6800 LCD6800 = LCD6800{
+	DefaultMap6800 Parallel6800 = Parallel6800{
 		CS:  "P1_7",
 		RW:  "P1_11",
 		RST: "P1_12",
@@ -258,7 +271,7 @@ var (
 )
 
 // WriteCmd for 8080 MPU
-func (hd *LCD8080) WriteCmd(cmd byte) error {
+func (hd *Parallel8080) WriteCmd(cmd byte) error {
 	var err error
 
 	if err = hd.WriteCS(embd.Low); err != nil { //chip select
@@ -287,11 +300,14 @@ func (hd *LCD8080) WriteCmd(cmd byte) error {
 	if err = hd.writeWR(embd.High); err != nil { //command writing ，写入命令
 		return err
 	}
+	usDealy(5)
+	hd.WriteCS(embd.High) //diable chip select
+
 	return nil
 }
 
 // WriteData for 8080 MPU
-func (hd *LCD8080) WriteData(dat byte) error {
+func (hd *Parallel8080) WriteData(dat byte) error {
 	if err := hd.WriteCS(embd.Low); err != nil { //chip select,打开片选
 		return err
 	}
@@ -322,42 +338,30 @@ func (hd *LCD8080) WriteData(dat byte) error {
 	//trigger WR rising edge to latch into LCD
 	hd.writeWR(embd.High)
 
-	return nil
-}
-
-func (hd *LCD8080) reset() error {
-	seq := []int{embd.Low, embd.High}
-	for _, sig := range seq {
-		if err := hd.writeReset(sig); err != nil {
-			return err
-		}
-	}
-	usDealy(10)
-	if err := hd.WriteCmd(cmdInternalReset); err != nil {
-		return err
-	}
+	usDealy(5)
+	hd.WriteCS(embd.High) //diable chip select
 
 	return nil
 }
 
-func (hd *LCD8080) writeReset(val int) error {
+func (hd *Parallel8080) WriteRST(val int) error {
 	return hd.Write(hd.RST, val)
 }
-func (hd *LCD8080) writeWR(val int) error {
+func (hd *Parallel8080) writeWR(val int) error {
 	return hd.Write(hd.WR, val)
 }
-func (hd *LCD8080) writeRS(val int) error {
+func (hd *Parallel8080) writeRS(val int) error {
 	return hd.Write(hd.RS, val)
 }
-func (hd *LCD8080) writeRD(val int) error {
+func (hd *Parallel8080) writeRD(val int) error {
 	return hd.Write(hd.RD, val)
 }
-func (hd *LCD8080) WriteCS(val int) error {
+func (hd *Parallel8080) WriteCS(val int) error {
 	return hd.Write(hd.CS, val)
 }
 
 //  fillDB write value to DB0~7 GPIO
-func (conn *LCD8080) fillDB8(value byte) error {
+func (conn *Parallel8080) fillDB8(value byte) error {
 	functions := []func() error{
 		func() error { return conn.Write(conn.DB0, int(value&0x01)) },
 		func() error { return conn.Write(conn.DB1, int((value>>1)&0x01)) },
@@ -379,52 +383,34 @@ func (conn *LCD8080) fillDB8(value byte) error {
 
 ///////////////////////////////////////////////////////////////////
 
-type LCD6800 struct {
+type Parallel6800 struct {
 	Connection
 	CS, RW, RST, A0, E                     interface{}
 	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 interface{}
 }
 
-// Init   initialize the st7565, the command is from the datasheet
-func (hd *LCD6800) Init(cmds []byte) error {
-	if err := hd.WriteCS(embd.Low); err != nil {
-		return err
-	}
-	if err := hd.reset(); err != nil {
-		return err
-	}
-
-	for _, cmd := range cmds {
-		if err := hd.WriteCmd(cmd); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Close closes the underlying Connection.
-func (hd *LCD6800) Close() error {
+func (hd *Parallel6800) Close() error {
 	return hd.Connection.Close()
 }
 
 // WriteCmd for 8080 MPU
-func (hd *LCD6800) WriteCmd(cmd byte) error {
+func (hd *Parallel6800) WriteCmd(cmd byte) error {
 	var err error
 
 	if err = hd.WriteCS(embd.Low); err != nil { //chip select
 		return err
 	}
 
-	if err = hd.writeRD(embd.High); err != nil { //disable read
+	if err = hd.writeA0(embd.Low); err != nil { //select command
 		return err
 	}
 
-	if err = hd.writeRS(embd.Low); err != nil { //select command
+	// RW=H,E=H (read) ; RW=L,E=H->L(write)
+	if err := hd.writeRW(embd.Low); err != nil { //select write
 		return err
 	}
-
-	if err = hd.writeWR(embd.Low); err != nil { //select write
+	if err := hd.writeE(embd.High); err != nil {
 		return err
 	}
 
@@ -434,28 +420,32 @@ func (hd *LCD6800) WriteCmd(cmd byte) error {
 		return err
 	}
 	usDealy(5)
-	//trigger WR rising edge to latch into LCD
-	if err = hd.writeWR(embd.High); err != nil { //command writing ，写入命令
+	//trigger E rising edge to latch into LCD
+	if err = hd.writeE(embd.Low); err != nil {
 		return err
 	}
+
+	usDealy(5)
+	hd.WriteCS(embd.High) //diable chip select
+
 	return nil
 }
 
 // WriteData for 8080 MPU
-func (hd *LCD6800) WriteData(dat byte) error {
-	if err := hd.WriteCS(embd.Low); err != nil { //chip select,打开片选
+func (hd *Parallel6800) WriteData(dat byte) error {
+	if err := hd.WriteCS(embd.Low); err != nil { //chip select
 		return err
 	}
 
-	if err := hd.writeRD(embd.High); err != nil { //disable read，读失能
+	if err := hd.writeA0(embd.High); err != nil { //select data
 		return err
 	}
 
-	if err := hd.writeRS(embd.High); err != nil { //select data，选择数据
+	// RW=H,E=H (read) ; RW=L,E=H->L(write)
+	if err := hd.writeRW(embd.Low); err != nil { //select write
 		return err
 	}
-
-	if err := hd.writeWR(embd.Low); err != nil { //select write，选择写模式
+	if err := hd.writeE(embd.High); err != nil {
 		return err
 	}
 
@@ -470,30 +460,43 @@ func (hd *LCD6800) WriteData(dat byte) error {
 	//_nop_();
 
 	usDealy(5)
-	//trigger WR rising edge to latch into LCD
-	hd.writeWR(embd.High)
+	//trigger E rising edge to latch into LCD
+	if err := hd.writeE(embd.Low); err != nil {
+		return err
+	}
+	usDealy(5)
+	hd.WriteCS(embd.High) //diable chip select
 
 	return nil
 }
 
-func (hd *LCD6800) writeReset(val int) error {
+//WriteReset : RES=L(init is execute), RES=H(normal running)
+func (hd *Parallel6800) WriteRST(val int) error {
 	return hd.Write(hd.RST, val)
 }
-func (hd *LCD6800) writeRW(val int) error {
+
+//writeRW : RW=H,E=H (read) ; RW=L,E=H->L(latch to LCD)
+func (hd *Parallel6800) writeRW(val int) error {
 	return hd.Write(hd.RW, val)
 }
-func (hd *LCD6800) writeA0(val int) error {
-	return hd.Write(hd.A0, val)
-}
-func (hd *LCD6800) writeE(val int) error {
+
+//writeE : RW=H,E=H (read) ; RW=L,E=H->L(latch to LCD)
+func (hd *Parallel6800) writeE(val int) error {
 	return hd.Write(hd.E, val)
 }
-func (hd *LCD6800) WriteCS(val int) error {
+
+//writeA0 : A0=H(trans data),A0=L(trans control)
+func (hd *Parallel6800) writeA0(val int) error {
+	return hd.Write(hd.A0, val)
+}
+
+//WriteCS : CS=L(enable access to LCD), CS=H(disable access to LCD)
+func (hd *Parallel6800) WriteCS(val int) error {
 	return hd.Write(hd.CS, val)
 }
 
 //  fillDB write value to DB0~7 GPIO
-func (conn *LCD6800) fillDB8(value byte) error {
+func (conn *Parallel6800) fillDB8(value byte) error {
 	functions := []func() error{
 		func() error { return conn.Write(conn.DB0, int(value&0x01)) },
 		func() error { return conn.Write(conn.DB1, int((value>>1)&0x01)) },

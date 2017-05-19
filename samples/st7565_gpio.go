@@ -12,6 +12,7 @@ import (
 	"flag"
 
 	"github.com/kidoman/embd"
+	"github.com/kidoman/embd/controller/st7565p"
 
 	_ "github.com/kidoman/embd/host/all"
 
@@ -24,9 +25,10 @@ func main() {
 	if err := embd.InitGPIO(); err != nil {
 		panic(err)
 	}
+
 	defer embd.CloseGPIO()
 
-	hd, err := NewGpio(DefaultMap8080)
+	hd, err := st7565p.NewGpio(st7565p.DefaultMap8080)
 
 	if err != nil {
 		panic(err)
@@ -42,12 +44,12 @@ func main() {
 
 	/*
 	 */
-
-	hd.modify()
+	a(hd)
+	//modify(hd)
 	//time.Sleep(1 * time.Minute)
 }
 
-func (hd *ST7565) modify() error {
+func modify(hd *st7565p.LCD) error {
 	running := true
 	reader := bufio.NewReader(os.Stdin)
 	for running {
@@ -59,16 +61,6 @@ func (hd *ST7565) modify() error {
 		abb, _ := strconv.Atoi(command)
 		fmt.Printf("received value is %v\n", abb)
 
-		if abb == 1 {
-			hd.WriteCmd(cmdSetADCNormal)
-			hd.b()
-
-		} else if abb == 2 {
-			hd.WriteCmd(cmdSetADCReverse)
-			hd.b()
-
-		}
-
 		//if err := hd.SetBoosterRatioMode(byte(abb)); err != nil {
 		//	return err
 		//}
@@ -76,7 +68,7 @@ func (hd *ST7565) modify() error {
 	return nil
 }
 
-func (hd *ST7565) a() {
+func a(hd *st7565p.LCD) {
 	for i := 0; i < 8; i++ {
 		hd.SetCursor(8, byte(i))
 		for j := 0; j < 112; j++ {
@@ -86,7 +78,7 @@ func (hd *ST7565) a() {
 
 }
 
-func (hd *ST7565) b() {
+func b(hd *st7565p.LCD) {
 	hd.SetCursor(0, 3)
 	/*
 		hd.WriteData(0xFF)
