@@ -200,6 +200,14 @@ var gushi = [8][112]byte{
 		0x00, 0x07, 0x04, 0x04, 0x04, 0x07, 0x00, 0x00, 0x03, 0x40, 0x80, 0x7F, 0x00, 0x00, 0x00, 0x00},
 }
 
+func lcd_ascii168_string(hd *st7565p.LCD, str string, x /*column*/, y /*page*/ byte) error {
+
+	for _, by := range str {
+
+		lcd_ascii168(hd, byte(by), x /*column*/, y /*page*/)
+	}
+	return nil
+}
 func lcd_ascii168(hd *st7565p.LCD, char byte, x /*column*/, y /*page*/ byte) error {
 	hd.SetCursor(x /*column*/, y /*page*/)
 
@@ -211,6 +219,7 @@ func lcd_ascii168(hd *st7565p.LCD, char byte, x /*column*/, y /*page*/ byte) err
 	for i := 8; i < 16; i++ {
 		hd.WriteData(val[i])
 	}
+	return nil
 }
 
 var Ascii168 = [...][16]byte{

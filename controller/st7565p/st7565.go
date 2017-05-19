@@ -620,6 +620,8 @@ func newGPIOPins(pins ...interface{}) (*GPIOConnection, error) {
 
 	var ll = GPIOConnection{}
 
+	ll.con = make(map[interface{}]embd.DigitalPin, 0)
+
 	for _, key := range pins {
 		if key == nil {
 			continue
