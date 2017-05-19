@@ -180,12 +180,14 @@ func (hd *LCD) Close() error {
 //Writeascii168Str   write string, the char size 8X8 in the string
 func (hd *LCD) Writeascii168Str(str string, x /*column*/, y /*page*/ byte) error {
 
-	for _, by := range str {
+	for index, by := range str {
 		c := byte(by - 32)
-		hd.lcd_ascii168(c, x, y)
+		hd.lcd_ascii168(c, x+byte(index*8), y)
 	}
 	return nil
+
 }
+
 func (hd *LCD) lcd_ascii168(char byte, x /*column*/, y /*page*/ byte) error {
 	hd.SetCursor(x /*column*/, y /*page*/)
 
