@@ -31,7 +31,6 @@ const (
 	YELLOW  = 0xFFE0
 )
 
-
 //SetCursor
 func (hd *LCD) SetCursor(xStart, yStart, xEnd, yEnd uint16) error {
 	//if x >= LcdWidth || x < 0 { //
@@ -599,7 +598,6 @@ func (hd *Parallel8080) WriteData16(val uint16) error {
 	if err := hd.writeWR(embd.Low); err != nil { //select write，选择写模式
 		return err
 	}
-	usDealy(5)
 	//trigger WR rising edge to latch into LCD
 	hd.writeWR(embd.High)
 
@@ -610,11 +608,8 @@ func (hd *Parallel8080) WriteData16(val uint16) error {
 	if err := hd.writeWR(embd.Low); err != nil { //select write，选择写模式
 		return err
 	}
-	usDealy(5)
 	//trigger WR rising edge to latch into LCD
 	hd.writeWR(embd.High)
-
-	usDealy(5)
 	hd.WriteCS(embd.High) //diable chip select
 
 	return nil

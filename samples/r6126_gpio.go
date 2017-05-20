@@ -58,21 +58,21 @@ func modify(lcd *r61526.LCD) error {
 		}
 		abb, _ := strconv.Atoi(command)
 		fmt.Printf("received value is %v\n", abb)
-		if abb == 0 {
+		if abb == 1 {
 			lcd.Clear(r61526.BLACK)
-		} else if abb == 1 {
+		} else if abb == 0 {
 			lcd.Clear(r61526.RED)
-		} else if abb == 1 {
+		} else if abb == 2 {
 			lcd.Clear(r61526.WHITE)
-		} else if abb == 1 {
+		} else if abb == 3 {
 			lcd.Clear(r61526.BLUE)
-		} else if abb == 1 {
+		} else if abb == 4 {
 			lcd.Clear(r61526.MAGENTA)
-		} else if abb == 1 {
+		} else if abb == 5 {
 			lcd.Clear(r61526.GREEN)
-		} else if abb == 1 {
+		} else if abb == 6 {
 			lcd.Clear(r61526.CYAN)
-		} else if abb == 1 {
+		} else if abb == 7 {
 			lcd.Clear(r61526.YELLOW)
 		}
 
