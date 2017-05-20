@@ -10,7 +10,6 @@ import (
 
 	"github.com/kidoman/embd"
 	"github.com/kidoman/embd/controller/r61526"
-	"github.com/kidoman/embd/controller/st7565p"
 
 	_ "github.com/kidoman/embd/host/all"
 
@@ -42,12 +41,13 @@ func main() {
 
 	/*
 	 */
-	modify(lcd)
-	//modify(hd)
+	writegushi(hd)
+	modifyColor(lcd)
+
 	//time.Sleep(1 * time.Minute)
 }
 
-func modify(lcd *r61526.LCD) error {
+func modifyColor(lcd *r61526.LCD) error {
 	running := true
 	reader := bufio.NewReader(os.Stdin)
 	for running {
@@ -80,9 +80,9 @@ func modify(lcd *r61526.LCD) error {
 	return nil
 }
 
-func writegushi(hd *st7565p.LCD) {
+func writegushi(hd *r61526.LCD) {
 	for i := 0; i < 8; i++ {
-		hd.SetCursor(8, byte(i))
+		hd.hd.SetCursor(0, 0, 30, 30)
 		for j := 0; j < 112; j++ {
 			hd.WriteData(gushi[i][j])
 		}

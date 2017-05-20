@@ -40,7 +40,7 @@ func (hd *LCD) SetCursor(xStart, yStart, xEnd, yEnd uint16) error {
 	//	return errors.New("according to datasheet(P42), not beyond 8 pages")
 	//}
 
-	if err := hd.R61526.WriteCmd(0x2A); err != nil {
+	if err := hd.R61526.WriteCmd(cmdSetColumnAddr); err != nil {
 		return err
 	}
 	if err := hd.R61526.WriteData16(xStart); err != nil {
@@ -50,7 +50,7 @@ func (hd *LCD) SetCursor(xStart, yStart, xEnd, yEnd uint16) error {
 		return err
 	}
 
-	if err := hd.R61526.WriteCmd(0x2b); err != nil {
+	if err := hd.R61526.WriteCmd(cmdSetPageAddr); err != nil {
 		return err
 	}
 	if err := hd.R61526.WriteData16(yStart); err != nil {
@@ -95,6 +95,19 @@ func (hd *LCD) Clear(color uint16) error {
 	return nil
 }
 
+func (hd *LCD) ExecUserCmd(cmd byte, paramenters ...byte) error {
+	if err := hd.R61526.WriteCmd(cmd); err != nil {
+		return err
+	}
+
+	for _, param := range paramenters {
+		if err := hd.R61526.WriteData(param); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Init   initialize the st7565,
 //special, if the cmd is 0xff, the func will deay 5us
 func (hd *LCD) Init(cmds []byte) error {
@@ -110,178 +123,62 @@ func (hd *LCD) Init(cmds []byte) error {
 		}
 	}
 	usDealy(10)
-	hd.R61526.WriteCmd(0xB0)
-	hd.R61526.WriteData(0x3F)
-	hd.R61526.WriteData(0x3F)
+	hd.ExecUserCmd(0xB0, 0x3F, 0x3F)
 	usDealy(5)
 
-	hd.R61526.WriteCmd(0xB3)
-	hd.R61526.WriteData(0x02)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x00)
+	hd.ExecUserCmd(0xB3, 0x02, 0x00, 0x00, 0x00, 0x00)
 
-	hd.R61526.WriteCmd(0xB4)
-	hd.R61526.WriteData(0x00)
+	hd.ExecUserCmd(0xB4, 0x00)
 
-	hd.R61526.WriteCmd(0xC0)
-	hd.R61526.WriteData(0x33) //03
-	hd.R61526.WriteData(0x4F)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x10)
-	hd.R61526.WriteData(0xA2)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x01)
-	hd.R61526.WriteData(0x00)
+	hd.ExecUserCmd(0xC0, 0x33, 0x4F, 0x00, 0x10, 0xA2, 0x00, 0x01, 0x00)
 
-	hd.R61526.WriteCmd(0xC1)
-	hd.R61526.WriteData(0x01)
-	hd.R61526.WriteData(0x02)
-	hd.R61526.WriteData(0x20)
-	hd.R61526.WriteData(0x08)
-	hd.R61526.WriteData(0x08)
+	hd.ExecUserCmd(0xC1, 0x01, 0x02, 0x20, 0x08, 0x08)
 	usDealy(50)
 
-	hd.R61526.WriteCmd(0xC3)
-	hd.R61526.WriteData(0x01)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x28)
-	hd.R61526.WriteData(0x08)
-	hd.R61526.WriteData(0x08)
+	hd.ExecUserCmd(0xC3, 0x01, 0x00, 0x28, 0x08, 0x08)
 	usDealy(5)
 
-	hd.R61526.WriteCmd(0xC4)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x01)
-	hd.R61526.WriteData(0x23)
-	hd.R61526.WriteData(0x04)
-	hd.R61526.WriteData(0x00)
+	hd.ExecUserCmd(0xC4, 0x11, 0x01, 0x23, 0x04, 0x00)
 
-	hd.R61526.WriteCmd(0xC8) //Gamma
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x0C)
-	hd.R61526.WriteData(0x0b)
-	hd.R61526.WriteData(0x15)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x09)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x07)
-	hd.R61526.WriteData(0x13)
-	hd.R61526.WriteData(0x10)
-	hd.R61526.WriteData(0x20)
+	hd.ExecUserCmd(0xC8,
+		0x05, 0x0C, 0x0b, 0x15, 0x11, 0x09, 0x05, 0x07, 0x13, 0x10, 0x20,
+		0x13, 0x07, 0x05, 0x09, 0x11, 0x15, 0x0b, 0x0c, 0x05, 0x05, 0x02)
 
-	hd.R61526.WriteData(0x13)
-	hd.R61526.WriteData(0x07)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x09)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x15)
-	hd.R61526.WriteData(0x0b)
-	hd.R61526.WriteData(0x0c)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x02)
+	hd.ExecUserCmd(0xC9,
+		0x05, 0x0C, 0x05, 0x15, 0x11, 0x09, 0x05, 0x07, 0x13, 0x10, 0x20,
+		0x13, 0x07, 0x05, 0x09, 0x11, 0x15, 0x0b, 0x0c, 0x05, 0x05, 0x02)
 
-	hd.R61526.WriteCmd(0xC9) //Gamma
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x0C)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x15)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x09)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x07)
-	hd.R61526.WriteData(0x13)
-	hd.R61526.WriteData(0x10)
-	hd.R61526.WriteData(0x20)
-	hd.R61526.WriteData(0x13)
-	hd.R61526.WriteData(0x07)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x09)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x15)
-	hd.R61526.WriteData(0x0b)
-	hd.R61526.WriteData(0x0c)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x02)
+	hd.ExecUserCmd(0xCA,
+		0x05, 0x0C, 0x0b, 0x15, 0x11, 0x09, 0x05, 0x07, 0x13, 0x10, 0x20,
+		0x13, 0x07, 0x05, 0x09, 0x11, 0x15, 0x0b, 0x0c, 0x05, 0x05, 0x02)
 
-	hd.R61526.WriteCmd(0xCA) //Gamma
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x0C)
-	hd.R61526.WriteData(0x0b)
-	hd.R61526.WriteData(0x15)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x09)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x07)
-	hd.R61526.WriteData(0x13)
-	hd.R61526.WriteData(0x10)
-	hd.R61526.WriteData(0x20)
-	hd.R61526.WriteData(0x13)
-	hd.R61526.WriteData(0x07)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x09)
-	hd.R61526.WriteData(0x11)
-	hd.R61526.WriteData(0x15)
-	hd.R61526.WriteData(0x0b)
-	hd.R61526.WriteData(0x0c)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x05)
-	hd.R61526.WriteData(0x02)
+	hd.ExecUserCmd(0xD0,
+		0x33, 0x53, 0x87, 0x3b, 0x30, 0x00)
 
-	hd.R61526.WriteCmd(0xD0)
-	hd.R61526.WriteData(0x33)
-	hd.R61526.WriteData(0x53)
-	hd.R61526.WriteData(0x87)
-	hd.R61526.WriteData(0x3b)
-	hd.R61526.WriteData(0x30)
-	hd.R61526.WriteData(0x00)
+	hd.ExecUserCmd(0xD1, 0x2c, 0x61, 0x10)
 
-	hd.R61526.WriteCmd(0xD1)
-	hd.R61526.WriteData(0x2c)
-	hd.R61526.WriteData(0x61)
-	hd.R61526.WriteData(0x10)
+	hd.ExecUserCmd(0xD2, 0x03, 0x24)
 
-	hd.R61526.WriteCmd(0xD2)
-	hd.R61526.WriteData(0x03)
-	hd.R61526.WriteData(0x24)
+	hd.ExecUserCmd(0xD4, 0x03, 0x24)
 
-	hd.R61526.WriteCmd(0xD4)
-	hd.R61526.WriteData(0x03)
-	hd.R61526.WriteData(0x24)
-
-	hd.R61526.WriteCmd(0xE2)
-	hd.R61526.WriteData(0x3f)
+	hd.ExecUserCmd(0xE2, 0x3f)
 	usDealy(5)
 
-	hd.R61526.WriteCmd(0x35) //TFT_WriteCmd(0x35 );
-	hd.R61526.WriteData(0x00)
+	hd.ExecUserCmd(0x35, 0x00)
 
-	hd.R61526.WriteCmd(0x36)
-	hd.R61526.WriteData(0x40)
+	hd.ExecUserCmd(0x36, 0x40)
 
-	hd.R61526.WriteCmd(0x3A)
-	hd.R61526.WriteData(0x55) //55 16bit color
+	hd.ExecUserCmd(0x3A, 0x55) //55 16bit color
 
-	hd.R61526.WriteCmd(0x2A)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0xEF)
+	hd.ExecUserCmd(cmdSetColumnAddr, 0x00, 0x00, 0x00, 0xEF)
 
-	hd.R61526.WriteCmd(0x2B)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x00)
-	hd.R61526.WriteData(0x01)
-	hd.R61526.WriteData(0x3F)
+	hd.ExecUserCmd(cmdSetPageAddr, 0x00, 0x00, 0x01, 0x3F)
 
-	hd.R61526.WriteCmd(0x11)
+	hd.ExecUserCmd(0x11)
 	usDealy(5)
-	hd.R61526.WriteCmd(0x29) //TFT_WriteCmd(0x29);
+	hd.ExecUserCmd(cmdSetDispOn) //TFT_WriteCmd(0x29);
 	usDealy(5)
-	hd.R61526.WriteCmd(0x2C) //TFT_WriteCmd(0x2C) ;
+	hd.ExecUserCmd(0x2C) //TFT_WriteCmd(0x2C) ;
 	usDealy(5)
 
 	hd.R61526.WriteCS(embd.High) //diable chip select
@@ -753,61 +650,12 @@ func usDealy(val time.Duration) {
 //commands from st7565 datasheet
 const (
 	//display on/of, datasheet P42
-	cmdDisplyOFF = 0xAE
-	cmdDisplyON  = 0xAF
 
-	//display start line set, datasheet p42
-	cmdSetDispStartLine = 0x40 //0x40~0x7F, map 0 to 63
+	//This command defines the column an area on the frame memory that can be accessed by the MPU
+	cmdSetColumnAddr = 0x2A //  4 paramenters, datasheet p94
+	cmdSetPageAddr   = 0x2B //  4 paramenters
 
-	// page address set,datasheet p42
-	cmdSetPageAddr = 0xB0 //0xB0~0xB8, map 0 to 8
-
-	//column address set, datasheet p43
-	cmdSetColumnUpper = 0x10
-	cmdSetColumnLower = 0x00
-
-	//ADC select(segment driver direction select), datasheet p44
-	//ref p26 to know the detail
-	cmdSetADCNormal  = 0xA0
-	cmdSetADCReverse = 0xA1
-	//common output mode select, datasheet p46
-	cmdSetComNormal  = 0xC0
-	cmdSetComReverse = 0xC8
-
-	//display Normal/reverse, lit and unlit display without overwriting the content of the display data RAM
-	//datasheet p44
-	cmdSetDispNormal  = 0xA6
-	cmdSetDispReverse = 0xA7
-
-	//display all points on/off, datasheet p44
-	cmdSetAllptsNormal = 0xA4
-	cmdSetAllptsON     = 0xA5
-
-	//LCD Bias set, , datasheet p45
-	cmdSetLCDBias9 = 0xA2
-	cmdSetLCDBias7 = 0xA3
-
-	//Reset, datasheet p46
-	cmdInternalReset = 0xE2
-
-	//power controller set, datasheet p47
-	cmdSetPowerControl = 0x28
-	cmdSetVolumeSECOND = 0x00
-	cmdSetStaticOFF    = 0xAC
-	cmdSetStaticON     = 0xAD
-	cmdSetStaticREG    = 0x00
-
-	//The Electronic Volume Mode Set  , datasheet p47
-	// Once the electronic volume mode has been set, no other command except for the
-	//electronic volume register  command (0~0x3f) can be used.
-	cmdSetVolumeFIRST = 0x81
-
-	//V0 Voltage Regulator Internal Resistor Ratio Set, datasheet p47
-	//This command sets the V0 voltage regulator internal resistor ratio (0~7)
-	cmdSetResistorRATIO = 0x20
-
-	//Booster Ratio , datasheet p49
-	cmdSetBoosterRatio = 0xF8
+	cmdSetDispOn = 0x29 // datasheet p93
 )
 
 ///////////////////////////////////////////////////////////////////////
