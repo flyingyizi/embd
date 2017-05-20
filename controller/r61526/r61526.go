@@ -1,4 +1,4 @@
-package st7565p
+package r61526
 
 import (
 	"time"
@@ -6,7 +6,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/kidoman/embd"
 
-	"errors"
 	"fmt"
 )
 
@@ -14,129 +13,86 @@ import (
 
  */
 type LCD struct {
-	St7565
+	R61526
 }
 
 const (
 	// LCD Parameters
-	LcdWidth  = 128
-	LcdHeight = 64
-	//lcdPageCount   ：according to datasheet(P42), not beyond 8 pages
-	lcdPageCount = 8
+	LcdWidth  = 319
+	LcdHeight = 479
+
+	WHITE   = 0xFFFF
+	BLACK   = 0x0000
+	BLUE    = 0x001F
+	RED     = 0xF800
+	MAGENTA = 0xF81F
+	GREEN   = 0x07E0
+	CYAN    = 0x7FFF
+	YELLOW  = 0xFFE0
 )
 
-//# LCD Page Order
-//var pagemap = [...]byte{3, 2, 1, 0, 7, 6, 5, 4}
-var pagemap = [...]byte{0, 1, 2, 3, 4, 5, 6, 7}
 
 //SetCursor
-func (hd *LCD) SetCursor(x /*column*/, y /*page*/ byte) error {
-	if x >= LcdWidth || x < 0 { //
-		return errors.New("according to datasheet(P43), beyond")
-	}
-	if y > lcdPageCount-1 || y < 0 { //
-		return errors.New("according to datasheet(P42), not beyond 8 pages")
-	}
+func (hd *LCD) SetCursor(xStart, yStart, xEnd, yEnd uint16) error {
+	//if x >= LcdWidth || x < 0 { //
+	//	return errors.New("according to datasheet(P43), beyond")
+	//}
+	//if y > LcdHeight || y < 0 { //
+	//	return errors.New("according to datasheet(P42), not beyond 8 pages")
+	//}
 
-	//set page
-	pagexxx := pagemap[y] | cmdSetPageAddr
-	if err := hd.St7565.WriteCmd(pagexxx); err != nil {
+	if err := hd.R61526.WriteCmd(0x2A); err != nil {
+		return err
+	}
+	if err := hd.R61526.WriteData16(xStart); err != nil {
+		return err
+	}
+	if err := hd.R61526.WriteData16(xEnd); err != nil {
 		return err
 	}
 
-	//set upper/lower bits of column
-	lsb := x & 0x0f
-	msb := (x & 0xf0) >> 4
-	msb = msb | cmdSetColumnUpper
-	if err := hd.St7565.WriteCmd(msb); err != nil {
+	if err := hd.R61526.WriteCmd(0x2b); err != nil {
 		return err
 	}
-	lsb = lsb | cmdSetColumnLower
-	if err := hd.St7565.WriteCmd(lsb); err != nil {
+	if err := hd.R61526.WriteData16(yStart); err != nil {
+		return err
+	}
+	if err := hd.R61526.WriteData16(yEnd); err != nil {
+		return err
+	}
+
+	if err := hd.R61526.WriteCmd(0x2c); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (hd *LCD) TFT_Changegrb(color uint16) (p uint16) {
+
+	red := (color & 0x1F)        //5 bits
+	green := (color >> 5) & 0x3F //6 bits
+	blue := (color >> 11) & 0x1F //5 bits
+
+	p = ((red << 11) | (green << 6) | blue)
+	return
 }
 
 // Clear clears the display and mode settings sets the cursor to the home position.
-func (hd *LCD) Clear() error {
+func (hd *LCD) Clear(color uint16) error {
+	grb := hd.TFT_Changegrb(color)
 
-	for i := 0; i < 8; i++ {
-		if err := hd.SetCursor(0, byte(i)); err != nil {
-			return err
+	if err := hd.SetCursor(0, 0, LcdWidth, LcdHeight); err != nil {
+		return err
+	}
+
+	var i uint16
+	for i = 0; i < LcdHeight; i++ {
+		for j := 0; j < LcdWidth; j++ {
+			hd.R61526.WriteData16(grb)
+
 		}
-
-		for j := 0; j < 128; j++ {
-			hd.St7565.WriteData(0x00)
-
-		}
 	}
 
-	return nil
-}
-
-//SetVolumeMode    The Electronic Volume Mode Set  , datasheet p47
-//for display contrast ratio
-func (hd *LCD) SetVolumeMode(levl /*voltage levels*/ byte) error {
-	if levl > 0x3F || levl < 0 { //
-		return errors.New("according to datasheet(P47), beyond")
-	}
-
-	if err := hd.WriteCmd(cmdSetVolumeFIRST); err != nil {
-		return err
-	}
-	if err := hd.WriteCmd(levl); err != nil {
-		return err
-	}
-	return nil
-}
-
-//SetResistorRATIOMode    V0 Voltage Regulator Internal Resistor Ratio Set, , datasheet p47
-//for display contrast ratio
-func (hd *LCD) SetResistorRATIOMode(ratio /*resistor ratio*/ byte) error {
-	if ratio > 7 || ratio < 0 { //
-		return errors.New("according to datasheet(P47), beyond")
-	}
-	ratio = cmdSetResistorRATIO | ratio
-	if err := hd.WriteCmd(ratio); err != nil {
-		return err
-	}
-	return nil
-}
-
-//SetPowerControlMode     refer datasheet p47
-func (hd *LCD) SetPowerControlMode(boosterON, VRON, VFON bool) error {
-	//refer datasheet p31
-	var d2, d1, d0 byte
-	if boosterON {
-		d2 = 0x01 << 2
-	}
-	if VRON {
-		d1 = 0x01 << 1
-	}
-	if VFON {
-		d0 = 0x01
-
-	}
-	v := cmdSetPowerControl | d2 | d1 | d0
-	if err := hd.WriteCmd(v); err != nil {
-		return err
-	}
-	return nil
-}
-
-//SetBoosterRatioMode      ratio: 0-->2x/3x/4x;  1->5x; 3->6x
-func (hd *LCD) SetBoosterRatioMode(ratio byte) error {
-	if ratio > 3 || ratio < 0 { //
-		return errors.New("according to datasheet(P49), beyond")
-	}
-
-	if err := hd.St7565.WriteCmd(cmdSetBoosterRatio); err != nil {
-		return err
-	}
-	if err := hd.St7565.WriteCmd(ratio); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -144,58 +100,220 @@ func (hd *LCD) SetBoosterRatioMode(ratio byte) error {
 //special, if the cmd is 0xff, the func will deay 5us
 func (hd *LCD) Init(cmds []byte) error {
 
-	if err := hd.St7565.WriteCS(embd.Low); err != nil { //chip select
+	if err := hd.R61526.WriteCS(embd.Low); err != nil { //chip select
 		return err
 	}
 
 	seq := []int{embd.Low, embd.High}
 	for _, sig := range seq {
-		if err := hd.St7565.WriteRST(sig); err != nil {
+		if err := hd.R61526.WriteRST(sig); err != nil {
 			return err
 		}
 	}
 	usDealy(10)
-	if err := hd.St7565.WriteCmd(cmdInternalReset); err != nil {
-		return err
-	}
+	hd.R61526.WriteCmd(0xB0)
+	hd.R61526.WriteData(0x3F)
+	hd.R61526.WriteData(0x3F)
 	usDealy(5)
 
-	for _, cmd := range cmds {
-		if cmd == 0xff {
-			usDealy(5)
-		} else if err := hd.St7565.WriteCmd(cmd); err != nil {
-			return err
-		}
-	}
+	hd.R61526.WriteCmd(0xB3)
+	hd.R61526.WriteData(0x02)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x00)
 
-	hd.St7565.WriteCS(embd.High) //diable chip select
+	hd.R61526.WriteCmd(0xB4)
+	hd.R61526.WriteData(0x00)
+
+	hd.R61526.WriteCmd(0xC0)
+	hd.R61526.WriteData(0x33) //03
+	hd.R61526.WriteData(0x4F)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x10)
+	hd.R61526.WriteData(0xA2)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x01)
+	hd.R61526.WriteData(0x00)
+
+	hd.R61526.WriteCmd(0xC1)
+	hd.R61526.WriteData(0x01)
+	hd.R61526.WriteData(0x02)
+	hd.R61526.WriteData(0x20)
+	hd.R61526.WriteData(0x08)
+	hd.R61526.WriteData(0x08)
+	usDealy(50)
+
+	hd.R61526.WriteCmd(0xC3)
+	hd.R61526.WriteData(0x01)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x28)
+	hd.R61526.WriteData(0x08)
+	hd.R61526.WriteData(0x08)
+	usDealy(5)
+
+	hd.R61526.WriteCmd(0xC4)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x01)
+	hd.R61526.WriteData(0x23)
+	hd.R61526.WriteData(0x04)
+	hd.R61526.WriteData(0x00)
+
+	hd.R61526.WriteCmd(0xC8) //Gamma
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x0C)
+	hd.R61526.WriteData(0x0b)
+	hd.R61526.WriteData(0x15)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x09)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x07)
+	hd.R61526.WriteData(0x13)
+	hd.R61526.WriteData(0x10)
+	hd.R61526.WriteData(0x20)
+
+	hd.R61526.WriteData(0x13)
+	hd.R61526.WriteData(0x07)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x09)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x15)
+	hd.R61526.WriteData(0x0b)
+	hd.R61526.WriteData(0x0c)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x02)
+
+	hd.R61526.WriteCmd(0xC9) //Gamma
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x0C)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x15)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x09)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x07)
+	hd.R61526.WriteData(0x13)
+	hd.R61526.WriteData(0x10)
+	hd.R61526.WriteData(0x20)
+	hd.R61526.WriteData(0x13)
+	hd.R61526.WriteData(0x07)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x09)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x15)
+	hd.R61526.WriteData(0x0b)
+	hd.R61526.WriteData(0x0c)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x02)
+
+	hd.R61526.WriteCmd(0xCA) //Gamma
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x0C)
+	hd.R61526.WriteData(0x0b)
+	hd.R61526.WriteData(0x15)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x09)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x07)
+	hd.R61526.WriteData(0x13)
+	hd.R61526.WriteData(0x10)
+	hd.R61526.WriteData(0x20)
+	hd.R61526.WriteData(0x13)
+	hd.R61526.WriteData(0x07)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x09)
+	hd.R61526.WriteData(0x11)
+	hd.R61526.WriteData(0x15)
+	hd.R61526.WriteData(0x0b)
+	hd.R61526.WriteData(0x0c)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x05)
+	hd.R61526.WriteData(0x02)
+
+	hd.R61526.WriteCmd(0xD0)
+	hd.R61526.WriteData(0x33)
+	hd.R61526.WriteData(0x53)
+	hd.R61526.WriteData(0x87)
+	hd.R61526.WriteData(0x3b)
+	hd.R61526.WriteData(0x30)
+	hd.R61526.WriteData(0x00)
+
+	hd.R61526.WriteCmd(0xD1)
+	hd.R61526.WriteData(0x2c)
+	hd.R61526.WriteData(0x61)
+	hd.R61526.WriteData(0x10)
+
+	hd.R61526.WriteCmd(0xD2)
+	hd.R61526.WriteData(0x03)
+	hd.R61526.WriteData(0x24)
+
+	hd.R61526.WriteCmd(0xD4)
+	hd.R61526.WriteData(0x03)
+	hd.R61526.WriteData(0x24)
+
+	hd.R61526.WriteCmd(0xE2)
+	hd.R61526.WriteData(0x3f)
+	usDealy(5)
+
+	hd.R61526.WriteCmd(0x35) //TFT_WriteCmd(0x35 );
+	hd.R61526.WriteData(0x00)
+
+	hd.R61526.WriteCmd(0x36)
+	hd.R61526.WriteData(0x40)
+
+	hd.R61526.WriteCmd(0x3A)
+	hd.R61526.WriteData(0x55) //55 16bit color
+
+	hd.R61526.WriteCmd(0x2A)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0xEF)
+
+	hd.R61526.WriteCmd(0x2B)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x00)
+	hd.R61526.WriteData(0x01)
+	hd.R61526.WriteData(0x3F)
+
+	hd.R61526.WriteCmd(0x11)
+	usDealy(5)
+	hd.R61526.WriteCmd(0x29) //TFT_WriteCmd(0x29);
+	usDealy(5)
+	hd.R61526.WriteCmd(0x2C) //TFT_WriteCmd(0x2C) ;
+	usDealy(5)
+
+	hd.R61526.WriteCS(embd.High) //diable chip select
 
 	return nil
 }
 
 func (hd *LCD) Close() error {
-	return hd.St7565.Close()
+	return hd.R61526.Close()
 }
 
 //Writeascii168Str   write string, the char size 8X8 in the string
-func (hd *LCD) Writeascii168Str(str string, x /*column*/, y /*page*/ byte) error {
+func (hd *LCD) Writeascii168Str(str string, x /*column*/, y /*page*/ uint16) error {
 
 	for index, by := range str {
 		c := byte(by - 32)
-		hd.lcd_ascii168(c, x+byte(index*8), y)
+		ind := uint16(index)
+		hd.lcd_ascii168(c, x+(ind*8), y)
 	}
 	return nil
 
 }
 
-func (hd *LCD) lcd_ascii168(char byte, x /*column*/, y /*page*/ byte) error {
-	hd.SetCursor(x /*column*/, y /*page*/)
+func (hd *LCD) lcd_ascii168(char byte, x /*column*/, y /*page*/ uint16) error {
+	//hd.SetCursor(x , y )
 
 	val := Ascii168[char]
 	for i := 0; i < 8; i++ {
 		hd.WriteData(val[i])
 	}
-	hd.SetCursor(x /*column*/, y+1 /*page*/)
+	//hd.SetCursor(x /*column*/, y+1 /*page*/)
 	for i := 8; i < 16; i++ {
 		hd.WriteData(val[i])
 	}
@@ -203,22 +321,20 @@ func (hd *LCD) lcd_ascii168(char byte, x /*column*/, y /*page*/ byte) error {
 }
 
 // ST7565 represents an ST7565-compatible character LCD controller.
-type St7565 interface {
+type R61526 interface {
 	Close() error
 
 	WriteCmd(cmd byte) error
 	WriteCS(val int) error
 	WriteRST(val int) error
 	WriteData(cmd byte) error
+	WriteData16(cmd uint16) error
 }
 
 //NewGpio
 //m: input Parallel8080 or Parallel6800
 //cmds: initial command ,if it is nil, it will initilized with defaultInitCmd
 func NewGpio(m interface{}, cmds ...byte) (*LCD, error) {
-	if cmds == nil {
-		cmds = defaultInitCmd
-	}
 
 	var lcd LCD
 	switch inst := m.(type) {
@@ -227,20 +343,7 @@ func NewGpio(m interface{}, cmds ...byte) (*LCD, error) {
 			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
 			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
 			inst.Connection = con
-			lcd.St7565 = &inst
-			if err := lcd.Init(cmds); err != nil {
-				return nil, fmt.Errorf("init fail")
-			}
-
-			return &lcd, nil
-		}
-	case Parallel6800:
-		//todo
-		if con, err := newGPIOPins(inst.CS, inst.RW, inst.RST, inst.A0, inst.E,
-			inst.DB0, inst.DB1, inst.DB2, inst.DB3,
-			inst.DB4, inst.DB5, inst.DB6, inst.DB7); err == nil {
-			inst.Connection = con
-			lcd.St7565 = &inst
+			lcd.R61526 = &inst
 			if err := lcd.Init(cmds); err != nil {
 				return nil, fmt.Errorf("init fail")
 			}
@@ -278,21 +381,23 @@ type Parallel8080 struct {
 	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 interface{}
 }
 
+/*
+//---¶¨ÒåÊ¹ÓÃµÄIO¿Ú---//
+sbit	    TFT_RS  = P3^2;	  //Êý¾ÝÃüÁîÑ¡Ôñ¶Ë
+sbit	    TFT_RST = P3^3;   //¸´Î»
+sbit	    TFT_WR  = P2^5;	  //¶ÁÐ´¿ØÖÆ
+sbit        TFT_RD  = P2^6;   //¶ÁÐ´¿ØÖÆ
+sbit	    TFT_CS  = P2^7;	  //Æ¬Ñ¡
+*/
+
 var (
 	DefaultMap8080 Parallel8080 = Parallel8080{
-		CS:  "P1_7",
-		WR:  "P1_11",
+		RS:  "P1_11",
 		RST: "P1_12",
-		RS:  "P1_15",
+		WR:  "P1_15",
 		RD:  "P1_40",
-		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
-		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
-	DefaultMap6800 Parallel6800 = Parallel6800{
 		CS:  "P1_7",
-		RW:  "P1_11",
-		RST: "P1_12",
-		A0:  "P1_15",
-		E:   "P1_40",
+
 		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
 		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
 	//8X8 ascii
@@ -469,6 +574,52 @@ func (hd *Parallel8080) WriteData(dat byte) error {
 	return nil
 }
 
+// WriteData for 8080 MPU
+func (hd *Parallel8080) WriteData16(val uint16) error {
+	if err := hd.WriteCS(embd.Low); err != nil { //chip select,打开片选
+		return err
+	}
+
+	if err := hd.writeRD(embd.High); err != nil { //disable read，读失能
+		return err
+	}
+
+	if err := hd.writeRS(embd.High); err != nil { //select data，选择数据
+		return err
+	}
+
+	//write msb
+	dataH := byte(val >> 8)
+	dataL := byte(val & 0xff)
+
+	//write dataH
+	if err := hd.fillDB8(dataH); err != nil { //put data，放置数据
+		return err
+	}
+	if err := hd.writeWR(embd.Low); err != nil { //select write，选择写模式
+		return err
+	}
+	usDealy(5)
+	//trigger WR rising edge to latch into LCD
+	hd.writeWR(embd.High)
+
+	//write dataL
+	if err := hd.fillDB8(dataL); err != nil { //put data，放置数据
+		return err
+	}
+	if err := hd.writeWR(embd.Low); err != nil { //select write，选择写模式
+		return err
+	}
+	usDealy(5)
+	//trigger WR rising edge to latch into LCD
+	hd.writeWR(embd.High)
+
+	usDealy(5)
+	hd.WriteCS(embd.High) //diable chip select
+
+	return nil
+}
+
 func (hd *Parallel8080) WriteRST(val int) error {
 	return hd.Connection.Write(hd.RST, val)
 }
@@ -506,165 +657,8 @@ func (conn *Parallel8080) fillDB8(value byte) error {
 	return nil
 }
 
-///////////////////////////////////////////////////////////////////
-
-type Parallel6800 struct {
-	Connection
-	CS, RW, RST, A0, E                     interface{}
-	DB0, DB1, DB2, DB3, DB4, DB5, DB6, DB7 interface{}
-}
-
-// Close closes the underlying Connection.
-func (hd *Parallel6800) Close() error {
-	return hd.Connection.Close()
-}
-
-// WriteCmd for 8080 MPU
-func (hd *Parallel6800) WriteCmd(cmd byte) error {
-	var err error
-
-	if err = hd.WriteCS(embd.Low); err != nil { //chip select
-		return err
-	}
-
-	if err = hd.writeA0(embd.Low); err != nil { //select command
-		return err
-	}
-
-	// RW=H,E=H (read) ; RW=L,E=H->L(write)
-	if err := hd.writeRW(embd.Low); err != nil { //select write
-		return err
-	}
-	if err := hd.writeE(embd.High); err != nil {
-		return err
-	}
-
-	//_nop_();
-	//_nop_();
-	if err = hd.fillDB8(cmd); err != nil {
-		return err
-	}
-	usDealy(5)
-	//trigger E rising edge to latch into LCD
-	if err = hd.writeE(embd.Low); err != nil {
-		return err
-	}
-
-	usDealy(5)
-	hd.WriteCS(embd.High) //diable chip select
-
-	return nil
-}
-
-// WriteData for 8080 MPU
-func (hd *Parallel6800) WriteData(dat byte) error {
-	if err := hd.WriteCS(embd.Low); err != nil { //chip select
-		return err
-	}
-
-	if err := hd.writeA0(embd.High); err != nil { //select data
-		return err
-	}
-
-	// RW=H,E=H (read) ; RW=L,E=H->L(write)
-	if err := hd.writeRW(embd.Low); err != nil { //select write
-		return err
-	}
-	if err := hd.writeE(embd.High); err != nil {
-		return err
-	}
-
-	//_nop_();
-	//_nop_();
-
-	if err := hd.fillDB8(dat); err != nil { //put data，放置数据
-		return err
-	}
-
-	//_nop_();
-	//_nop_();
-
-	usDealy(5)
-	//trigger E rising edge to latch into LCD
-	if err := hd.writeE(embd.Low); err != nil {
-		return err
-	}
-	usDealy(5)
-	hd.WriteCS(embd.High) //diable chip select
-
-	return nil
-}
-
-//WriteReset : RES=L(init is execute), RES=H(normal running)
-func (hd *Parallel6800) WriteRST(val int) error {
-	return hd.Write(hd.RST, val)
-}
-
-//writeRW : RW=H,E=H (read) ; RW=L,E=H->L(latch to LCD)
-func (hd *Parallel6800) writeRW(val int) error {
-	return hd.Write(hd.RW, val)
-}
-
-//writeE : RW=H,E=H (read) ; RW=L,E=H->L(latch to LCD)
-func (hd *Parallel6800) writeE(val int) error {
-	return hd.Write(hd.E, val)
-}
-
-//writeA0 : A0=H(trans data),A0=L(trans control)
-func (hd *Parallel6800) writeA0(val int) error {
-	return hd.Write(hd.A0, val)
-}
-
-//WriteCS : CS=L(enable access to LCD), CS=H(disable access to LCD)
-func (hd *Parallel6800) WriteCS(val int) error {
-	return hd.Write(hd.CS, val)
-}
-
-//  fillDB write value to DB0~7 GPIO
-func (conn *Parallel6800) fillDB8(value byte) error {
-	functions := []func() error{
-		func() error { return conn.Write(conn.DB0, int(value&0x01)) },
-		func() error { return conn.Write(conn.DB1, int((value>>1)&0x01)) },
-		func() error { return conn.Write(conn.DB2, int((value>>2)&0x01)) },
-		func() error { return conn.Write(conn.DB3, int((value>>3)&0x01)) },
-		func() error { return conn.Write(conn.DB4, int((value>>4)&0x01)) },
-		func() error { return conn.Write(conn.DB5, int((value>>5)&0x01)) },
-		func() error { return conn.Write(conn.DB6, int((value>>6)&0x01)) },
-		func() error { return conn.Write(conn.DB7, int((value>>7)&0x01)) },
-	}
-	for _, f := range functions {
-		err := f()
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////
-
-var defaultInitCmd []byte = []byte{
-	(cmdSetADCNormal),  //设置SEG输出方向
-	(cmdSetComReverse), //设置公共端输出扫描方向
-
-	cmdSetVolumeFIRST,
-	0x14,
-
-	cmdSetResistorRATIO | 5,
-
-	cmdSetPowerControl | 4 | 2 | 1,
-
-	cmdSetBoosterRatio,
-	0x1,
-
-	cmdSetDispStartLine | 0, //   = 0x40 //0x40~0x7F, map 0 to 63
-
-	cmdDisplyOFF,
-
-	(cmdSetLCDBias7), //设置偏压比
-	(cmdDisplyON),
-}
 
 type GPIOConnection struct {
 	// con is the list of registered GPIO.

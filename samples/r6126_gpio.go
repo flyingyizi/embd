@@ -1,5 +1,3 @@
-// +build ignore
-
 package main
 
 import (
@@ -11,6 +9,7 @@ import (
 	"flag"
 
 	"github.com/kidoman/embd"
+	"github.com/kidoman/embd/controller/r61526"
 	"github.com/kidoman/embd/controller/st7565p"
 
 	_ "github.com/kidoman/embd/host/all"
@@ -27,7 +26,7 @@ func main() {
 
 	defer embd.CloseGPIO()
 
-	lcd, err := st7565p.NewGpio(st7565p.DefaultMap8080)
+	lcd, err := r61526.NewGpio(r61526.DefaultMap8080)
 
 	if err != nil {
 		panic(err)
@@ -37,7 +36,7 @@ func main() {
 	//dis := time.Now().Sub(start).Seconds()
 
 	s := time.Now()
-	lcd.Clear()
+	lcd.Clear(r61526.BLACK)
 	dis := time.Now().Sub(s).Minutes()
 	fmt.Printf("hd.Clear using minutes %v\n", dis)
 
@@ -48,7 +47,7 @@ func main() {
 	//time.Sleep(1 * time.Minute)
 }
 
-func modify(hd *st7565p.LCD) error {
+func modify(lcd *r61526.LCD) error {
 	running := true
 	reader := bufio.NewReader(os.Stdin)
 	for running {
@@ -57,17 +56,26 @@ func modify(hd *st7565p.LCD) error {
 		if command == "stop" {
 			running = false
 		}
-		abb, ok := strconv.Atoi(command)
+		abb, _ := strconv.Atoi(command)
 		fmt.Printf("received value is %v\n", abb)
-		if command == "gushi" {
-			writegushi(hd)
-		} else if ok == nil {
-			hd.Writeascii168Str("command", 0, byte(abb))
+		if abb == 0 {
+			lcd.Clear(r61526.BLACK)
+		} else if abb == 1 {
+			lcd.Clear(r61526.RED)
+		} else if abb == 1 {
+			lcd.Clear(r61526.WHITE)
+		} else if abb == 1 {
+			lcd.Clear(r61526.BLUE)
+		} else if abb == 1 {
+			lcd.Clear(r61526.MAGENTA)
+		} else if abb == 1 {
+			lcd.Clear(r61526.GREEN)
+		} else if abb == 1 {
+			lcd.Clear(r61526.CYAN)
+		} else if abb == 1 {
+			lcd.Clear(r61526.YELLOW)
 		}
 
-		//if err := hd.SetBoosterRatioMode(byte(abb)); err != nil {
-		//	return err
-		//}
 	}
 	return nil
 }
