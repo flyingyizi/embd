@@ -177,30 +177,27 @@ func (hd *LCD) Close() error {
 	return hd.St7565.Close()
 }
 
-//Writeascii168Str   write string, the char size 8X8 in the string
-func (hd *LCD) Writeascii168Str(str string, x /*column*/, y /*page*/ byte) error {
+//WriteAscii8x8Str   write string, the char size 8X8 in the string
+func (hd *LCD) WriteAscii8x8Str(str string, x /*column*/, y /*page*/ byte) error {
 
 	for index, by := range str {
 		c := byte(by - 32)
-		hd.lcd_ascii168(c, x+byte(index*8), y)
+
+		hd.SetCursor(x+byte(index*8) /*column*/, y /*page*/)
+		val := Ascii8x8[c]
+		for i := 0; i < 8; i++ {
+			hd.WriteData(val[i])
+		}
+		hd.SetCursor(x /*column*/, y+1 /*page*/)
+		for i := 8; i < 16; i++ {
+			hd.WriteData(val[i])
+		}
+
 	}
 	return nil
 
 }
 
-func (hd *LCD) lcd_ascii168(char byte, x /*column*/, y /*page*/ byte) error {
-	hd.SetCursor(x /*column*/, y /*page*/)
-
-	val := Ascii168[char]
-	for i := 0; i < 8; i++ {
-		hd.WriteData(val[i])
-	}
-	hd.SetCursor(x /*column*/, y+1 /*page*/)
-	for i := 8; i < 16; i++ {
-		hd.WriteData(val[i])
-	}
-	return nil
-}
 
 // ST7565 represents an ST7565-compatible character LCD controller.
 type St7565 interface {
@@ -296,7 +293,7 @@ var (
 		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
 		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
 	//8X8 ascii
-	Ascii168 = [...][16]byte{
+	Ascii8x8 = [...][16]byte{
 		{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, //" ",0
 		{0x00, 0x00, 0x00, 0xF8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x33, 0x30, 0x00, 0x00, 0x00}, //"!",1
 		{0x00, 0x10, 0x0C, 0x06, 0x10, 0x0C, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, //""",2
