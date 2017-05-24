@@ -19,8 +19,8 @@ type LCD struct {
 
 const (
 	//3.5# LCD size Parameters
-	LcdWidth  = 320
-	LcdHeight = 480
+	LcdWidth  = 319
+	LcdHeight = 479
 
 	//2.4#  LCD size Parameters
 	//LcdWidth =239//
@@ -267,7 +267,7 @@ func (hd *LCD) Init(cmds []byte) error {
 
 	hd.ExecUserCmd(0x35, 0x00)
 
-	hd.ExecUserCmd(0x36, 0x40)
+	hd.ExecUserCmd(cmdSetAddrMode, 0x40)
 
 	hd.ExecUserCmd(0x3A, 0x55) //55 16bit color
 
@@ -360,7 +360,7 @@ var (
 		RD:  "P1_40", //p26
 		CS:  "P1_7",  //p27
 
-		DB0: "P1_19", DB1: "P1_21", DB2: "P1_23", DB3: "P1_16",
+		DB0: "P1_29", DB1: "P1_31", DB2: "P1_33", DB3: "P1_16",
 		DB4: "P1_18", DB5: "P1_22", DB6: "P1_24", DB7: "P1_26"}
 )
 
@@ -624,10 +624,9 @@ const (
 	cmdSetPageAddr   = 0x2B //  4 paramenters
 
 	cmdSetDispOn = 0x29 // datasheet p93
-)
 
-///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
+	cmdSetAddrMode = 0x36 // datasheet p107
+)
 
 /////////////////////////////////////////////////////////////////////////
 // ASCII码表,大小为：16*24                                                         //

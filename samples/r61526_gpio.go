@@ -22,15 +22,22 @@ func main() {
 	if err := embd.InitGPIO(); err != nil {
 		panic(err)
 	}
-
 	defer embd.CloseGPIO()
 
+	//for lcd display
 	lcd, err := r61526.NewGpio(r61526.DefaultMap8080)
 
 	if err != nil {
 		panic(err)
 	}
 	defer lcd.Close()
+
+	// for lcd touch
+	touch, e := r61526.NewTouchGpio(r61526.DefaultTouchMap)
+	if e != nil {
+		panic(err)
+	}
+	defer touch.Close()
 
 	//dis := time.Now().Sub(start).Seconds()
 
@@ -41,7 +48,8 @@ func main() {
 
 	/*
 	 */
-	modifyInput(lcd)
+	//modifyInput(lcd)
+	touchMody(lcd, touch)
 
 	//time.Sleep(1 * time.Minute)
 }
@@ -82,4 +90,59 @@ func modifyInput(lcd *r61526.LCD) error {
 		}
 	}
 	return nil
+}
+
+func touchMody(lcd *r61526.LCD, t *r61526.Touch) {
+
+	//--多出来两个值使用来在内存上面跟别的变量分隔的--//
+	var xValue = [...]uint16{0, 0, 0, 0, 0, 0}
+	var yValue = [...]uint16{0, 0, 0, 0, 0, 0}
+
+	var rst = 1
+
+	for true {
+		if rst == 1 {
+			lcd.Clear(0x0000)
+			lcd.DrawLine(100, 54, 220, 54, 0xF800)
+			lcd.WriteAscii16x24Str(5, 0, "RST", 0xF800, 0x0000)
+		}
+
+		x, y, err := t.TOUCH_XPT_ReadXY()
+		if err == nil {
+			//--如果触摸跟显示发生偏移，可以根据显示AD值--//
+			//--调整下面公式里面的数值--//
+			x = (x - 256) * 320 / 3638
+			y = (y - 160) * 480 / 3716
+
+			if x > 319 {
+				x = 318
+			}
+			if y > 479 {
+				y = 478
+			}
+			if (x > 280) && (y < 30) {
+				rst = 1
+			} else {
+				lcd.DrawDot((319 - x), y, 0x001F)
+				//--计算读取到的AD值--//
+				//--由于添加了显示AD值，计算需要时间，所以触摸有一点延迟--//xpt_xy.
+				xValue[1] = (x % 10000 / 1000) + '0'
+				xValue[2] = (x % 1000 / 100) + '0'
+				xValue[3] = (x % 100 / 10) + '0'
+				xValue[4] = (x % 10) + '0'
+
+				yValue[1] = (y % 10000 / 1000) + '0'
+				yValue[2] = (y % 1000 / 100) + '0'
+				yValue[3] = (y % 100 / 10) + '0'
+				yValue[4] = (y % 10) + '0'
+
+				//--显示AD值--//
+				lcd.WriteAscii16x24Str(0, 170, "X:", 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(32, 170, &xValue[1], 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(0, 195, "Y:", 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(32, 195, &yValue[1], 0xF800, 0x0000)
+			}
+		}
+	}
+
 }
