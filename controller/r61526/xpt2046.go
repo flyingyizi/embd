@@ -7,47 +7,59 @@ import (
 	"github.com/kidoman/embd"
 
 	"fmt"
+	"math"
 )
 
+//https://github.com/MatthewLowden/RPi-XPT2046-Touchscreen-Python/blob/master/SPIManager.py
 /*
 
  */
 type Touch struct {
 	Xpt2046
+	Conversion ConversionSelect
 }
 
 // Init   initialize the st7565,
 //special, if the cmd is 0xff, the func will deay 5us
-func (hd *Touch) Init(cmds []byte) error {
-
+func (hd *Touch) Init() error {
+	hd.Conversion = conversion12Bit
 	return nil
 }
 
+func (hd *Touch) SetMode(c ConversionSelect) {
+	hd.Conversion = c
+}
+func (hd *Touch) makeControlByte(chl ChannelSelect) byte {
+	return (startBit | byte(chl) | byte(hd.Conversion))
+}
+
 func (hd *Touch) TOUCH_XPT_ReadXY() (x uint16, y uint16, err error) {
+	xPositionCmd := hd.makeControlByte(channelXPosition)
+	yPositionCmd := hd.makeControlByte(channelYPosition)
 
-	hd.MockSPIStart()
+	err = hd.MockSPIStart()
+	if err != nil {
+		return 0, 0, err
+	}
 	//---分别读两次X值和Y值, 交叉着读可以提高一些读取精度---//
-	x1, _ := hd.XptReadData(XPT_CMD_X)
-	y1, _ := hd.XptReadData(XPT_CMD_Y)
-	x2, _ := hd.XptReadData(XPT_CMD_X)
-	y2, _ := hd.XptReadData(XPT_CMD_Y)
-
-	//---求取X值的差值---//
-	if x1 > x2 {
-		x = x1 - x2
-	} else {
-		x = x2 - x1
+	var x1, x2, y1, y2 uint16
+	if x1, err = hd.XptReadData(xPositionCmd); err != nil {
+		return 0, 0, err
+	}
+	if y1, err = hd.XptReadData(yPositionCmd); err != nil {
+		return 0, 0, err
+	}
+	if x2, err = hd.XptReadData(xPositionCmd); err != nil {
+		return 0, 0, err
+	}
+	if y2, err = hd.XptReadData(yPositionCmd); err != nil {
+		return 0, 0, err
 	}
 
-	//---求取Y值的差值---//
-	if y1 > y2 {
-		y = y1 - y2
-	} else {
-		y = y2 - y1
-	}
-
-	//---判断差值是否大于50，大于就返回0，表示读取失败---//
-	if (x > 50) || (y > 50) {
+	//---求取X,y值的差值---//
+	deltax := math.Abs(float64(x1 - x2))
+	deltay := math.Abs(float64(y1 - y2))
+	if (deltax > 50) || (deltay > 50) {
 		return 0, 0, fmt.Errorf("da")
 	}
 
@@ -80,20 +92,19 @@ type Xpt2046 interface {
 //NewGpio
 //m: input Parallel8080 or Parallel6800
 //cmds: initial command ,if it is nil, it will initilized with defaultInitCmd
-func NewTouchGpio(m interface{}, cmds ...byte) (*Touch, error) {
+func NewTouchGpio(m interface{}) (*Touch, error) {
 
 	var th Touch
 	switch inst := m.(type) {
 	case Xpt2046GPIO:
-		if con, err := newTouchGPIOPins(inst.DO, inst.CLK, inst.DIN, inst.CS, inst.PEN,
+		if con, err := newTouchGPIOPins(inst.DO, inst.CLK, inst.DIN, inst.CS,
 			inst.BUSY); err == nil {
 			inst.TouchConnection = con
 			inst.InitDirection()
 			th.Xpt2046 = &inst
-			if err := th.Init(cmds); err != nil {
+			if err := th.Init(); err != nil {
 				return nil, fmt.Errorf("init fail")
 			}
-
 			return &th, nil
 		}
 	}
@@ -114,17 +125,17 @@ sbit TOUCH_PEN  = P2^4;
 */
 type Xpt2046GPIO struct {
 	TouchConnection
-	DO, CLK, DIN, CS, PEN, BUSY interface{}
+	DO, CLK, DIN, CS, BUSY interface{}
 }
 
 var (
 	DefaultTouchMap Xpt2046GPIO = Xpt2046GPIO{
-		PEN: "P1_38", //p27  //检测触摸屏响应信号
+		//PEN: "P1_3", //p27  //检测触摸屏响应信号
 		/*BUSY PIN*/
-		CS:  "P1_36", //p26  //片选
-		DIN: "P1_37", //p25  //输入
-		CLK: "P1_35", //p33  //时钟
-		DO:  "P1_33", //p32  //输出
+		CS:  "P1_37", //p26  //片选
+		DIN: "P1_32", //p25  //输入
+		CLK: "P1_36", //p33  //时钟
+		DO:  "P1_38", //p32  //输出
 	}
 )
 
@@ -206,16 +217,10 @@ func (hd *Xpt2046GPIO) XptReadData(cmd byte) (uint16, error) {
 	for i := 0; i < XY_READ_TIMS-1; i++ { //从大到小排序
 		for j := i + 1; j < XY_READ_TIMS; j++ {
 			if readValue[i] < readValue[j] {
-				endValue := readValue[i]
-				readValue[i] = readValue[j]
-				readValue[j] = endValue
+				readValue[i], readValue[j] = readValue[j], readValue[i]
 			}
 		}
 	}
-	//	if((readValue[2] - readValue[3]) > 5)
-	//	{
-	//		return 0;
-	//	}
 	var endValue int
 	for i := 2; i < XY_READ_TIMS-2; i++ {
 		endValue += readValue[i]
@@ -225,9 +230,9 @@ func (hd *Xpt2046GPIO) XptReadData(cmd byte) (uint16, error) {
 	return uint16(endValue), nil
 }
 
-func (hd *Xpt2046GPIO) ReadPEN() (int, error) {
-	return hd.TouchConnection.Read(hd.PEN)
-}
+//func (hd *Xpt2046GPIO) ReadPEN() (int, error) {
+//	return hd.TouchConnection.Read(hd.PEN)
+//}
 func (hd *Xpt2046GPIO) readDO() (int, error) {
 	return hd.TouchConnection.Read(hd.DO)
 }
@@ -247,7 +252,7 @@ func (hd *Xpt2046GPIO) InitDirection() error {
 		func() error { return hd.PinInst(hd.DIN).SetDirection(embd.Out) },
 		func() error { return hd.PinInst(hd.CLK).SetDirection(embd.Out) },
 		func() error { return hd.PinInst(hd.DO).SetDirection(embd.In) },
-		func() error { return hd.PinInst(hd.PEN).SetDirection(embd.In) },
+		//func() error { return hd.PinInst(hd.PEN).SetDirection(embd.In) },
 	}
 	for _, f := range functions {
 		err := f()
@@ -293,6 +298,7 @@ func newTouchGPIOPins(pins ...interface{}) (*TouchGPIOConnection, error) {
 			digitalPin, err = embd.NewDigitalPin(key)
 			if err != nil {
 				glog.V(1).Infof("GPIO: error creating digital pin %+v: %s", key, err)
+
 				return nil, err
 			}
 		}
@@ -380,10 +386,53 @@ func usDealy_(val time.Duration) {
 //commands from xpt2046 datasheet datasheet p18 p14
 const (
 	//---定义芯片命令字节---//  xpt2046 datasheet p14
-	XPT_CMD_X = 0xD0 //读取X轴的命令
+	//XPT_CMD_X = 0xD0 //读取X轴的命令
 	XPT_CMD_Y = 0x90 //读取Y轴的命令
-
 )
 
+//	class ChannelSelect(object):
+type ChannelSelect byte
+
+const (
+	channelXPosition      ChannelSelect = 0x50 // 0b0101 0000
+	channelYPosition      ChannelSelect = 0x10 // 0b0001 0000
+	channelZ1Position     ChannelSelect = 0x30 // 0b0011 0000
+	channelZ2Position     ChannelSelect = 0x40 // 0b0100 0000
+	channelTemp0          ChannelSelect = 0x00 // 0b0000 0000
+	channelTemp1          ChannelSelect = 0x70 // 0b0111 0000
+	channelBatteryVoltage ChannelSelect = 0x20 // 0b0010 0000
+	channelAuxiliary      ChannelSelect = 0x60 // 0b0110 0000
+)
+
+const (
+	startBit byte = 0x80 // 0b1000 0000
+)
+
+type ConversionSelect byte
+
+const (
+	conversion8Bit  ConversionSelect = 0x08 //0b0000 1000
+	conversion12Bit ConversionSelect = 0x00 //0b0000 0000
+)
+
+/*
+command format
+7   6   5   4    3      2         1     0
+S   A2  A3  A0   MODE   SER/DFR   PD1   PD0
+
+mode:0(12 bit)  1(8bit)
+*/
+/*
+A2   A1   A0
+0    0    0    temp0
+1    1    1    temp1
+0    1    0    Vbat
+1    1    0     AUXILIARY
+
+1    0    0     z2 position
+0    0    1     y position
+0    1    1     z1 position
+1    0    1     x position
+*/
 ///////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////

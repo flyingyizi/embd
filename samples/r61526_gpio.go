@@ -95,8 +95,8 @@ func modifyInput(lcd *r61526.LCD) error {
 func touchMody(lcd *r61526.LCD, t *r61526.Touch) {
 
 	//--多出来两个值使用来在内存上面跟别的变量分隔的--//
-	var xValue = [...]uint16{0, 0, 0, 0, 0, 0}
-	var yValue = [...]uint16{0, 0, 0, 0, 0, 0}
+	//var xValue = [...]byte{0, 0, 0, 0, 0, 0}
+	//var yValue = [...]byte{0, 0, 0, 0, 0, 0}
 
 	var rst = 1
 
@@ -105,6 +105,7 @@ func touchMody(lcd *r61526.LCD, t *r61526.Touch) {
 			lcd.Clear(0x0000)
 			lcd.DrawLine(100, 54, 220, 54, 0xF800)
 			lcd.WriteAscii16x24Str(5, 0, "RST", 0xF800, 0x0000)
+			rst = 0
 		}
 
 		x, y, err := t.TOUCH_XPT_ReadXY()
@@ -126,21 +127,23 @@ func touchMody(lcd *r61526.LCD, t *r61526.Touch) {
 				lcd.DrawDot((319 - x), y, 0x001F)
 				//--计算读取到的AD值--//
 				//--由于添加了显示AD值，计算需要时间，所以触摸有一点延迟--//xpt_xy.
-				xValue[1] = (x % 10000 / 1000) + '0'
-				xValue[2] = (x % 1000 / 100) + '0'
-				xValue[3] = (x % 100 / 10) + '0'
-				xValue[4] = (x % 10) + '0'
+				//xValue[1] = byte((x % 10000 / 1000)) + '0'
+				//xValue[2] = byte((x % 1000 / 100)) + '0'
+				//xValue[3] = byte((x % 100 / 10)) + '0'
+				//xValue[4] = byte((x % 10)) + '0'
 
-				yValue[1] = (y % 10000 / 1000) + '0'
-				yValue[2] = (y % 1000 / 100) + '0'
-				yValue[3] = (y % 100 / 10) + '0'
-				yValue[4] = (y % 10) + '0'
-
+				//yValue[1] = byte((y % 10000 / 1000)) + '0'
+				//yValue[2] = byte((y % 1000 / 100)) + '0'
+				//yValue[3] = byte((y % 100 / 10)) + '0'
+				//yValue[4] = byte((y % 10)) + '0'
+				fmt.Printf("x: %+v ;y: %+v:\n", x, y)
 				//--显示AD值--//
 				lcd.WriteAscii16x24Str(0, 170, "X:", 0xF800, 0x0000)
-				lcd.WriteAscii16x24Str(32, 170, &xValue[1], 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(32, 170, "           ", 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(32, 170, strconv.Itoa(int(x)), 0xF800, 0x0000)
 				lcd.WriteAscii16x24Str(0, 195, "Y:", 0xF800, 0x0000)
-				lcd.WriteAscii16x24Str(32, 195, &yValue[1], 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(32, 195, "           ", 0xF800, 0x0000)
+				lcd.WriteAscii16x24Str(32, 195, strconv.Itoa(int(y)), 0xF800, 0x0000)
 			}
 		}
 	}
