@@ -5,38 +5,101 @@ import (
 	"fmt"
 	"math"
 
+	"sort"
+
 	"github.com/golang/glog"
 	"github.com/kidoman/embd"
 )
 
 // XPT2046 represents a xpt2046 SAR DAC.
 type XPT2046 struct {
-	Conversion ConversionSelect
+	PenIrq embd.DigitalPin
+	Bus    embd.SPIBus
+	XY     chan Coordinate
+}
 
-	Bus embd.SPIBus
+type Coordinate struct {
+	X, Y int
+}
+
+func NewPENIRQ(penIrq interface{}) embd.DigitalPin {
+	if penIrq == nil {
+		return nil
+	}
+	var digitalPin embd.DigitalPin
+
+	if pin, ok := penIrq.(embd.DigitalPin); ok {
+		digitalPin = pin
+	} else {
+		var err error
+		digitalPin, err = embd.NewDigitalPin(penIrq)
+		if err != nil {
+			glog.V(1).Infof("GPIO: error creating digital pin %+v: %s", penIrq, err)
+			return nil
+		}
+	}
+	if err := digitalPin.SetDirection(embd.In); err != nil {
+		glog.Errorf("GPIO: error setting pin %+v to out direction: %s", penIrq, err)
+		digitalPin.Close()
+		return nil
+	}
+	if err := digitalPin.ActiveLow(false); err != nil {
+		glog.Errorf("GPIO: error setting pin %+v to low active : %s", penIrq, err)
+		digitalPin.Close()
+		return nil
+	}
+
+	return digitalPin
 }
 
 // New creates a representation of the mcp3008 convertor
-func New(conversion ConversionSelect, bus embd.SPIBus) *XPT2046 {
-	return &XPT2046{Conversion: conversion, Bus: bus}
+//penIrq   connect to penirq gpio
+func New(bus embd.SPIBus, irqpin embd.DigitalPin) *XPT2046 {
+	chx := make(chan Coordinate)
+	return &XPT2046{Bus: bus, PenIrq: irqpin, XY: chx}
 }
 
-//SetMode   set to 8bit or 12bit conversion
-func (hd *XPT2046) SetMode(c ConversionSelect) {
-	hd.Conversion = c
+//Watch register PENIRQ
+func (hd *XPT2046) Watch() error {
+	if hd.PenIrq == nil {
+		return fmt.Errorf("irq pin is nil, can not watch")
+	}
+
+	//EdgeRising  Edge = "rising"
+	//EdgeFalling Edge = "falling"
+
+	err := hd.PenIrq.Watch(embd.EdgeFalling, func(p embd.DigitalPin) {
+		x, _ := hd.ReadX()
+		y, _ := hd.ReadY()
+
+		//if x, y, err := hd.TOUCH_XPT_ReadXY(); err == nil {
+		if x == 0 && y == 0 {
+			return
+		}
+		hd.XY <- Coordinate{X: x, Y: y}
+		//}
+	})
+	return err
+}
+func (hd *XPT2046) StopWatching() error {
+	if hd.PenIrq == nil {
+		return fmt.Errorf("irq pin is nil, can not stopwatch")
+	}
+	err := hd.PenIrq.StopWatching()
+	return err
 }
 
 func (hd *XPT2046) ReadX() (int, error) {
-	return hd.readValue(ChannelXPosition)
+	return hd.readADCValue(conversion12Bit, ChannelXPosition)
 }
 func (hd *XPT2046) ReadY() (int, error) {
-	return hd.readValue(ChannelYPosition)
+	return hd.readADCValue(conversion12Bit, ChannelYPosition)
 }
 func (hd *XPT2046) ReadZ1() (int, error) {
-	return hd.readValue(ChannelZ1Position)
+	return hd.readADCValue(conversion12Bit, ChannelZ1Position)
 }
 func (hd *XPT2046) ReadZ2() (int, error) {
-	return hd.readValue(ChannelZ2Position)
+	return hd.readADCValue(conversion12Bit, ChannelZ2Position)
 }
 func (hd *XPT2046) ReadTouchPressure() (int, error) {
 	//# Formula (option 1) according to the datasheet (12bit conversion)
@@ -55,27 +118,44 @@ func (hd *XPT2046) ReadTouchPressure() (int, error) {
 		z1 = 1
 	}
 	xDivisor := 4096
-	if hd.Conversion == conversion8Bit {
-		xDivisor = 256
-	}
+	//if hd.Conversion == conversion8Bit {
+	//	xDivisor = 256
+	//}
 	result := (x / xDivisor) * ((z2 / z1) - 1)
 	return result, nil
 }
+
+func (hd *XPT2046) ReadTemp0() (int, error) {
+	return hd.readADCValue(conversion8Bit, ChannelTemp0)
+}
+func (hd *XPT2046) ReadTemp1() (int, error) {
+	return hd.readADCValue(conversion8Bit, ChannelTemp1)
+}
+func (hd *XPT2046) ReadAux() (int, error) {
+	return hd.readADCValue(conversion8Bit, ChannelAuxiliary)
+}
+func (hd *XPT2046) ReadBatteryVoltage() (int, error) {
+	return hd.readADCValue(conversion8Bit, ChannelBatteryVoltage)
+}
+
+const (
+	WINDOWSWIDTH = 4
+)
 
 func (hd *XPT2046) TOUCH_XPT_ReadXY() (x int, y int, err error) {
 
 	//---分别读两次X值和Y值, 交叉着读可以提高一些读取精度---//
 	var x1, x2, y1, y2 int
-	if x1, err = hd.readFilterValue(ChannelXPosition); err != nil {
+	if x1, err = hd.readFilterValue(conversion12Bit, ChannelXPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
-	if y1, err = hd.readFilterValue(ChannelYPosition); err != nil {
+	if y1, err = hd.readFilterValue(conversion12Bit, ChannelYPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
-	if x2, err = hd.readFilterValue(ChannelXPosition); err != nil {
+	if x2, err = hd.readFilterValue(conversion12Bit, ChannelXPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
-	if y2, err = hd.readFilterValue(ChannelYPosition); err != nil {
+	if y2, err = hd.readFilterValue(conversion12Bit, ChannelYPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
 
@@ -83,30 +163,24 @@ func (hd *XPT2046) TOUCH_XPT_ReadXY() (x int, y int, err error) {
 	deltax := math.Abs(float64(x1 - x2))
 	deltay := math.Abs(float64(y1 - y2))
 	if (deltax > 50) || (deltay > 50) {
-		return 0, 0, fmt.Errorf("da")
+
+		s := fmt.Sprintf("deltax: %+v ;deltay: %+v\n", deltax, deltay)
+		return 0, 0, fmt.Errorf(s)
 	}
 
-	//---求取两次读取值的平均数作为读取到的XY值---//
 	x = (x1 + x2) / 2
 	y = (y1 + y2) / 2
-
-	//x &= 0xFFF0 //去掉低四位
-	//y &= 0xFFF0
-
-	//---确定XY值的范围，用在触摸屏大于TFT时---//
-	if (x < 100) || (y > 4000) {
-		return 0, 0, fmt.Errorf("da")
-	}
+	err = nil
 	return
 }
 
-func (hd *XPT2046) makeControlByte(chl ChannelSelect) byte {
-	return (startBit | byte(chl) | byte(hd.Conversion))
+func (hd *XPT2046) makeControlByte(conv ConversionSelect, chl ChannelSelect) byte {
+	return (startBit | byte(chl) | byte(conv))
 }
 
-// readValue returns the  value at the given channel of the convertor.
-func (hd *XPT2046) readValue(chl ChannelSelect) (int, error) {
-	controlByte := hd.makeControlByte(chl)
+// readADCValue returns the  value at the given channel of the convertor.
+func (hd *XPT2046) readADCValue(conv ConversionSelect, chl ChannelSelect) (int, error) {
+	controlByte := hd.makeControlByte(conv, chl)
 
 	var data [3]uint8
 	data[0] = controlByte
@@ -123,35 +197,30 @@ func (hd *XPT2046) readValue(chl ChannelSelect) (int, error) {
 	return resp, nil
 }
 
-const (
-	XY_READ_TIMS = 10 //读取次数
-)
+//winWidth:  filter windows width, suggest value is 10
+func (hd *XPT2046) readFilterValue(conv ConversionSelect, chl ChannelSelect, winWidth int) (int, error) {
 
-func (hd *XPT2046) readFilterValue(chl ChannelSelect) (int, error) {
-
-	var readValue [XY_READ_TIMS]int
-	var readNum int = 0
-	for i := 0; i < XY_READ_TIMS; i++ { //读取XY_READ_TIMS次结果
-		if val, err := hd.readValue(chl); err != nil {
-			readValue[readNum] = val
-			readNum = readNum + 1
-		}
+	if winWidth < 3 {
+		winWidth = 3
 	}
 
-	//---软件滤波---//
-	//---先大到小排序，除去最高值，除去最低值，求其平均值---//
-	for i := 0; i < readNum-1; i++ { //从大到小排序
-		for j := i + 1; j < readNum; j++ {
-			if readValue[i] < readValue[j] {
-				readValue[i], readValue[j] = readValue[j], readValue[i]
-			}
+	sli := make([]int, 0, winWidth)
+	for i := 0; i < winWidth; i++ { //读取XY_READ_TIMS次结果
+		if val, err := hd.readADCValue(conv, chl); err == nil {
+			sli = append(sli, val)
 		}
 	}
+	//---software filer
+	sort.Ints(sli)
+	//fmt.Println("sli:   ", sli)
+	length := len(sli)
+
 	var endValue int
-	for i := 2; i < readNum-2; i++ {
-		endValue += readValue[i]
+
+	for _, v := range sli {
+		endValue += v
 	}
-	endValue = endValue / (readNum - 4) //求平均值
+	endValue /= length
 
 	return endValue, nil
 }
