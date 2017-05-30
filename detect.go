@@ -20,6 +20,9 @@ const (
 	// HostRPi represents the RaspberryPi.
 	HostRPi = "Raspberry Pi"
 
+	// HostRPi represents the RaspberryPi.
+	HostUdoo = "Udoo"
+
 	// HostBBB represents the BeagleBone Black.
 	HostBBB = "BeagleBone Black"
 
@@ -122,6 +125,8 @@ func DetectHost() (host Host, rev int, err error) {
 	}
 
 	switch {
+	case strings.Contains(model, "ARMv7") && (strings.Contains(hardware, "i.MX6")):
+		return HostUdoo, rev, nil
 	case strings.Contains(model, "ARMv7") && (strings.Contains(hardware, "AM33XX") || strings.Contains(hardware, "AM335X")):
 		return HostBBB, rev, nil
 	case strings.Contains(hardware, "BCM2708") || strings.Contains(hardware, "BCM2709"):
