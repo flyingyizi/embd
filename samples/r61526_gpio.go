@@ -48,7 +48,7 @@ func main() {
 	spiBus := embd.NewSPIBus(embd.SPIMode0, channel, speed, bpw, delay)
 	defer spiBus.Close()
 
-	penIRQ := xpt2046.NewPENIRQ("P1_32")
+	penIRQ := xpt2046.NewPENIRQ("P1_37")
 	defer penIRQ.Close()
 
 	touch := xpt2046.New(spiBus, penIRQ)
