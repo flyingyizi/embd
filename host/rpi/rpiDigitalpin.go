@@ -5,7 +5,6 @@
 package rpi
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -129,7 +128,7 @@ type rpiDigitPin struct {
 	drv embd.GPIODriver
 
 	//dir *os.File
-	//val       *os.File
+	val       *os.File
 	activeLow *os.File
 
 	readBuf []byte
@@ -161,9 +160,9 @@ func (p *rpiDigitPin) init() error {
 	//if p.dir, err = p.directionFile(); err != nil {
 	//	return err
 	//}
-	//if p.val, err = p.valueFile(); err != nil {
-	//	return err
-	//}
+	if p.val, err = p.valueFile(); err != nil {
+		return err
+	}
 	if p.activeLow, err = p.activeLowFile(); err != nil {
 		return err
 	}
@@ -206,6 +205,10 @@ func (p *rpiDigitPin) openFile(path string) (*os.File, error) {
 
 func (p *rpiDigitPin) directionFile() (*os.File, error) {
 	return p.openFile(path.Join(p.basePath(), "direction"))
+}
+
+func (p *rpiDigitPin) valueFile() (*os.File, error) {
+	return p.openFile(path.Join(p.basePath(), "value"))
 }
 
 func (p *rpiDigitPin) activeLowFile() (*os.File, error) {
@@ -389,9 +392,9 @@ func (p *rpiDigitPin) Close() error {
 	//if err := p.dir.Close(); err != nil {
 	//	return err
 	//}
-	//if err := p.val.Close(); err != nil {
-	//	return err
-	//}
+	if err := p.val.Close(); err != nil {
+		return err
+	}
 	if err := p.activeLow.Close(); err != nil {
 		return err
 	}
@@ -416,16 +419,16 @@ func (p *rpiDigitPin) setEdge(edge embd.Edge) error {
 }
 
 func (p *rpiDigitPin) Watch(edge embd.Edge, handler func(embd.DigitalPin)) error {
-	return errors.New("gpio: not implemented")
-	//if err := p.setEdge(edge); err != nil {
-	//	return err
-	//}
-	//return registerInterrupt(p, handler)
+	//return errors.New("gpio: not implemented")
+	if err := p.setEdge(edge); err != nil {
+		return err
+	}
+	return registerInterrupt(p, handler)
 }
 
 func (p *rpiDigitPin) StopWatching() error {
-	return errors.New("gpio: not implemented")
-	//return unregisterInterrupt(p)
+	//return errors.New("gpio: not implemented")
+	return unregisterInterrupt(p)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

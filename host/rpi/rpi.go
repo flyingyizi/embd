@@ -85,12 +85,12 @@ func init() {
 		}
 
 		return &embd.Descriptor{
-			GPIODriver: func() embd.GPIODriver {
-				return embd.NewGPIODriver(pins, generic.NewDigitalPin, nil, nil)
-			},
 			//GPIODriver: func() embd.GPIODriver {
-			//	return embd.NewGPIODriver(pins, NewRPIDigitalPin, nil, nil)
+			//	return embd.NewGPIODriver(pins, generic.NewDigitalPin, nil, nil)
 			//},
+			GPIODriver: func() embd.GPIODriver {
+				return embd.NewGPIODriver(pins, NewRPIDigitalPin, nil, nil)
+			},
 			I2CDriver: func() embd.I2CDriver {
 				return embd.NewI2CDriver(generic.NewI2CBus)
 			},
