@@ -13,16 +13,17 @@ import (
 
 // XPT2046 represents a xpt2046 SAR DAC.
 type XPT2046 struct {
-	PenIrq embd.DigitalPin
-	Bus    embd.SPIBus
-	XY     chan Coordinate
+	Bus embd.SPIBus
+	XY  chan Coordinate
+
+	penirq embd.DigitalPin
 }
 
 type Coordinate struct {
 	X, Y int
 }
 
-func NewPENIRQ(penIrq interface{}) embd.DigitalPin {
+func newPENIRQ(penIrq interface{}) embd.DigitalPin {
 	if penIrq == nil {
 		return nil
 	}
@@ -53,15 +54,16 @@ func NewPENIRQ(penIrq interface{}) embd.DigitalPin {
 }
 
 // New creates a representation of the mcp3008 convertor
-//penIrq   connect to penirq gpio
-func New(bus embd.SPIBus, irqpin embd.DigitalPin) *XPT2046 {
+func New(bus embd.SPIBus) *XPT2046 {
 	chx := make(chan Coordinate)
-	return &XPT2046{Bus: bus, PenIrq: irqpin, XY: chx}
+
+	return &XPT2046{Bus: bus, XY: chx}
 }
 
 //Watch register PENIRQ
-func (hd *XPT2046) Watch() error {
-	if hd.PenIrq == nil {
+func (hd *XPT2046) Watch(penIrq interface{}) error {
+	irqpin := newPENIRQ(penIrq)
+	if irqpin == nil {
 		return fmt.Errorf("irq pin is nil, can not watch")
 	}
 
@@ -70,7 +72,7 @@ func (hd *XPT2046) Watch() error {
 	//EdgeFalling Edge = "falling"
 	//EdgeBoth    Edge = "EdgeBoth"
 	//
-	err := hd.PenIrq.Watch(embd.EdgeFalling, func(p embd.DigitalPin) {
+	err := irqpin.Watch(embd.EdgeFalling, func(p embd.DigitalPin) {
 		x, _ := hd.ReadX()
 		y, _ := hd.ReadY()
 		v, _ := p.Read()
@@ -82,14 +84,16 @@ func (hd *XPT2046) Watch() error {
 		hd.XY <- Coordinate{X: x, Y: y}
 		//}
 	})
+
+	hd.penirq = irqpin
 	return err
 }
-func (hd *XPT2046) StopWatching() error {
-	if hd.PenIrq == nil {
-		return fmt.Errorf("irq pin is nil, can not stopwatch")
+func (hd *XPT2046) StopWatching() {
+	if hd.penirq == nil {
+		return
 	}
-	err := hd.PenIrq.StopWatching()
-	return err
+	hd.penirq.StopWatching()
+	hd.penirq.Close()
 }
 
 func (hd *XPT2046) ReadX() (int, error) {

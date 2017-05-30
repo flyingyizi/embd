@@ -48,12 +48,9 @@ func main() {
 	spiBus := embd.NewSPIBus(embd.SPIMode0, channel, speed, bpw, delay)
 	defer spiBus.Close()
 
-	penIRQ := xpt2046.NewPENIRQ("P1_37")
-	defer penIRQ.Close()
+	touch := xpt2046.New(spiBus)
 
-	touch := xpt2046.New(spiBus, penIRQ)
-
-	if err = touch.Watch(); err != nil {
+	if err = touch.Watch("P1_37"); err != nil {
 		panic(err)
 	}
 	defer touch.StopWatching()
@@ -71,6 +68,7 @@ func main() {
 		for {
 			select {
 			//case v, ok := <-xpt.XY:
+
 			case v := <-xpt.XY:
 				//	if ok {
 				//fmt.Printf("x: %+v ;y: %+v； \n", v.X, v.Y)
