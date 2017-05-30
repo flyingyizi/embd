@@ -61,7 +61,7 @@ func main() {
 
 	//s := time.Now()
 	//dis := time.Now().Sub(s).Minutes()
-	fmt.Printf("touch %v;  spi %v;  irq %v;  \n", touch, spiBus, penIRQ)
+	//fmt.Printf("touch %v;  spi %v;  irq %v;  \n", touch, spiBus, penIRQ)
 
 	lcd.Clear(r61526.WHITE)
 	//lcd.Clear(0x0000)
@@ -70,19 +70,19 @@ func main() {
 	go func(tft *r61526.LCD, xpt *xpt2046.XPT2046) {
 		for {
 			select {
-			case v, ok := <-xpt.XY:
-				if ok {
-					fmt.Printf("x: %+v ;y: %+v； \n", v.X, v.Y)
-					tft.DrawDot(uint16(v.X), uint16(v.Y), 0x001F)
+			//case v, ok := <-xpt.XY:
+			case v := <-xpt.XY:
+				//	if ok {
+				//fmt.Printf("x: %+v ;y: %+v； \n", v.X, v.Y)
+				tft.DrawDot(uint16(v.X), uint16(v.Y), 0x001F)
 
-					tft.WriteAscii16x24Str(0, 170, "X:", 0xF800, r61526.WHITE)
-					tft.WriteAscii16x24Str(32, 170, "           ", 0xF800, r61526.WHITE)
-					tft.WriteAscii16x24Str(32, 170, strconv.Itoa(int(v.X)), 0xF800, r61526.WHITE)
-					tft.WriteAscii16x24Str(0, 195, "Y:", 0xF800, r61526.WHITE)
-					tft.WriteAscii16x24Str(32, 195, "           ", 0xF800, r61526.WHITE)
-					tft.WriteAscii16x24Str(32, 195, strconv.Itoa(int(v.Y)), 0xF800, r61526.WHITE)
-					//xpt.Watch()
-				}
+				tft.WriteAscii16x24Str(0, 170, "X:", 0xF800, r61526.WHITE)
+				tft.WriteAscii16x24Str(32, 170, "           ", 0xF800, r61526.WHITE)
+				tft.WriteAscii16x24Str(32, 170, strconv.Itoa(int(v.X)), 0xF800, r61526.WHITE)
+				tft.WriteAscii16x24Str(0, 195, "Y:", 0xF800, r61526.WHITE)
+				tft.WriteAscii16x24Str(32, 195, "           ", 0xF800, r61526.WHITE)
+				tft.WriteAscii16x24Str(32, 195, strconv.Itoa(int(v.Y)), 0xF800, r61526.WHITE)
+				//	}
 			}
 		}
 	}(lcd, touch)

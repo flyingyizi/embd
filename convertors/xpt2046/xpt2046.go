@@ -65,13 +65,16 @@ func (hd *XPT2046) Watch() error {
 		return fmt.Errorf("irq pin is nil, can not watch")
 	}
 
+	//EdgeNone    Edge = "none"
 	//EdgeRising  Edge = "rising"
 	//EdgeFalling Edge = "falling"
-
+	//EdgeBoth    Edge = "EdgeBoth"
+	//
 	err := hd.PenIrq.Watch(embd.EdgeFalling, func(p embd.DigitalPin) {
 		x, _ := hd.ReadX()
 		y, _ := hd.ReadY()
-
+		v, _ := p.Read()
+		fmt.Println("triggered", "x:", x, "y:", y, "irqpin:", v)
 		//if x, y, err := hd.TOUCH_XPT_ReadXY(); err == nil {
 		if x == 0 && y == 0 {
 			return
@@ -90,16 +93,16 @@ func (hd *XPT2046) StopWatching() error {
 }
 
 func (hd *XPT2046) ReadX() (int, error) {
-	return hd.readADCValue(conversion12Bit, ChannelXPosition)
+	return hd.readADCValue(ads12Bit, ChannelXPosition)
 }
 func (hd *XPT2046) ReadY() (int, error) {
-	return hd.readADCValue(conversion12Bit, ChannelYPosition)
+	return hd.readADCValue(ads12Bit, ChannelYPosition)
 }
 func (hd *XPT2046) ReadZ1() (int, error) {
-	return hd.readADCValue(conversion12Bit, ChannelZ1Position)
+	return hd.readADCValue(ads12Bit, ChannelZ1Position)
 }
 func (hd *XPT2046) ReadZ2() (int, error) {
-	return hd.readADCValue(conversion12Bit, ChannelZ2Position)
+	return hd.readADCValue(ads12Bit, ChannelZ2Position)
 }
 func (hd *XPT2046) ReadTouchPressure() (int, error) {
 	//# Formula (option 1) according to the datasheet (12bit conversion)
@@ -126,16 +129,16 @@ func (hd *XPT2046) ReadTouchPressure() (int, error) {
 }
 
 func (hd *XPT2046) ReadTemp0() (int, error) {
-	return hd.readADCValue(conversion8Bit, ChannelTemp0)
+	return hd.readADCValue(ads8Bit, ChannelTemp0)
 }
 func (hd *XPT2046) ReadTemp1() (int, error) {
-	return hd.readADCValue(conversion8Bit, ChannelTemp1)
+	return hd.readADCValue(ads8Bit, ChannelTemp1)
 }
 func (hd *XPT2046) ReadAux() (int, error) {
-	return hd.readADCValue(conversion8Bit, ChannelAuxiliary)
+	return hd.readADCValue(ads8Bit, ChannelAuxiliary)
 }
 func (hd *XPT2046) ReadBatteryVoltage() (int, error) {
-	return hd.readADCValue(conversion8Bit, ChannelBatteryVoltage)
+	return hd.readADCValue(ads8Bit, ChannelBatteryVoltage)
 }
 
 const (
@@ -146,16 +149,16 @@ func (hd *XPT2046) TOUCH_XPT_ReadXY() (x int, y int, err error) {
 
 	//---分别读两次X值和Y值, 交叉着读可以提高一些读取精度---//
 	var x1, x2, y1, y2 int
-	if x1, err = hd.readFilterValue(conversion12Bit, ChannelXPosition, WINDOWSWIDTH); err != nil {
+	if x1, err = hd.readFilterValue(ads12Bit, ChannelXPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
-	if y1, err = hd.readFilterValue(conversion12Bit, ChannelYPosition, WINDOWSWIDTH); err != nil {
+	if y1, err = hd.readFilterValue(ads12Bit, ChannelYPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
-	if x2, err = hd.readFilterValue(conversion12Bit, ChannelXPosition, WINDOWSWIDTH); err != nil {
+	if x2, err = hd.readFilterValue(ads12Bit, ChannelXPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
-	if y2, err = hd.readFilterValue(conversion12Bit, ChannelYPosition, WINDOWSWIDTH); err != nil {
+	if y2, err = hd.readFilterValue(ads12Bit, ChannelYPosition, WINDOWSWIDTH); err != nil {
 		return 0, 0, err
 	}
 
@@ -229,25 +232,25 @@ func (hd *XPT2046) readFilterValue(conv ConversionSelect, chl ChannelSelect, win
 type ChannelSelect byte
 
 const (
-	ChannelXPosition      ChannelSelect = 0x50 // 0b0101 0000
-	ChannelYPosition      ChannelSelect = 0x10 // 0b0001 0000
-	ChannelZ1Position     ChannelSelect = 0x30 // 0b0011 0000
-	ChannelZ2Position     ChannelSelect = 0x40 // 0b0100 0000
-	ChannelTemp0          ChannelSelect = 0x00 // 0b0000 0000
-	ChannelTemp1          ChannelSelect = 0x70 // 0b0111 0000
-	ChannelBatteryVoltage ChannelSelect = 0x20 // 0b0010 0000
-	ChannelAuxiliary      ChannelSelect = 0x60 // 0b0110 0000
+	ChannelXPosition      ChannelSelect = 0x50 // 0b0101 0000  (5<<4)
+	ChannelYPosition      ChannelSelect = 0x10 // 0b0001 0000  (1<<4)
+	ChannelZ1Position     ChannelSelect = 0x30 // 0b0011 0000  (3<<4)
+	ChannelZ2Position     ChannelSelect = 0x40 // 0b0100 0000  (4<<4)
+	ChannelTemp0          ChannelSelect = 0x00 // 0b0000 0000  (0<<4)
+	ChannelTemp1          ChannelSelect = 0x70 // 0b0111 0000  (7<<4)
+	ChannelBatteryVoltage ChannelSelect = 0x20 // 0b0010 0000  (2<<4)
+	ChannelAuxiliary      ChannelSelect = 0x60 // 0b0110 0000  (6<<4)
 )
 
 const (
-	startBit byte = 0x80 // 0b1000 0000
+	startBit byte = 0x80 // 0b1000 0000   (1<<7)
 )
 
 type ConversionSelect byte
 
 const (
-	conversion8Bit  ConversionSelect = 0x08 //0b0000 1000
-	conversion12Bit ConversionSelect = 0x00 //0b0000 0000
+	ads8Bit  ConversionSelect = 0x08 //0b0000 1000 (1<<3)
+	ads12Bit ConversionSelect = 0x00 //0b0000 0000 (0<<3)
 )
 
 const (
