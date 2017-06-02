@@ -9,8 +9,6 @@ import (
 	"github.com/kidoman/embd/convertors/xpt2046"
 
 	_ "github.com/kidoman/embd/host/all"
-
-	"fmt"
 )
 
 const (
@@ -54,7 +52,7 @@ func main() {
 			select {
 			case v, ok := <-xpt.XY:
 				if ok {
-					fmt.Printf("x: %+v ;y: %+v； \n", v.X, v.Y)
+					//fmt.Printf("x: %+v ;y: %+v； \n", v.X, v.Y)
 				}
 			}
 		}

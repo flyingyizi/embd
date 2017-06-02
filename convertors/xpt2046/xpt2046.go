@@ -61,7 +61,7 @@ func New(bus embd.SPIBus) *XPT2046 {
 }
 
 //Watch register PENIRQ
-func (hd *XPT2046) Watch(penIrq interface{}) error {
+func (hd *XPT2046) Watch(penIrq interface{} /*, handler func(embd.DigitalPin)*/) error {
 	irqpin := newPENIRQ(penIrq)
 	if irqpin == nil {
 		return fmt.Errorf("irq pin is nil, can not watch")

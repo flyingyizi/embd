@@ -65,9 +65,9 @@ type MemoryT int
 
 // the value is from PRI post PI2 revision
 const (
-	RpiUnknownMB MemoryT = -1
-	Rpi512MB     MemoryT = 1
-	Rpi1024MB    MemoryT = 2
+	UnknownMB MemoryT = -1
+	512MB     MemoryT = 1
+	1024MB    MemoryT = 2
 )
 
 type ProcessorT int

@@ -54,7 +54,8 @@ func initEpollListener() *epollListener {
 	listener := &epollListener{fd: fd, interruptablePins: make(map[int]*interrupt)}
 
 	go func() {
-		var epollEvents [MaxGPIOInterrupt]syscall.EpollEvent
+		//var epollEvents [MaxGPIOInterrupt]syscall.EpollEvent
+		epollEvents := make([]syscall.EpollEvent, MaxGPIOInterrupt)
 
 		for {
 			n, err := syscall.EpollWait(listener.fd, epollEvents[:], -1)
