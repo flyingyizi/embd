@@ -1,6 +1,5 @@
-#!/bin/ksh
-#
-             
+#!/bin/sh
+#             
 USAGE="Usage:a.sh filename"
 if [ $# -ne 1 ]
 then 
