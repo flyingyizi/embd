@@ -1,5 +1,3 @@
-//+build ingore
-
 // Generic Interrupt Pins.
 
 package udoo
@@ -57,7 +55,7 @@ func initEpollListener() *epollListener {
 
 	go func() {
 		//var epollEvents [MaxGPIOInterrupt]syscall.EpollEvent
-		epollEvents :=make([]syscall.EpollEvent, MaxGPIOInterrupt)
+		epollEvents := make([]syscall.EpollEvent, MaxGPIOInterrupt)
 
 		for {
 			n, err := syscall.EpollWait(listener.fd, epollEvents[:], -1)
@@ -76,7 +74,7 @@ func initEpollListener() *epollListener {
 	return listener
 }
 
-func registerInterrupt(pin *rpiDigitPin, handler func(embd.DigitalPin)) error {
+func registerInterrupt(pin *udooDigitPin, handler func(embd.DigitalPin)) error {
 	l := getEpollListenerInstance()
 
 	pinFd := int(pin.val.Fd())
@@ -106,7 +104,7 @@ func registerInterrupt(pin *rpiDigitPin, handler func(embd.DigitalPin)) error {
 	return nil
 }
 
-func unregisterInterrupt(pin *rpiDigitPin) error {
+func unregisterInterrupt(pin *udooDigitPin) error {
 	l := getEpollListenerInstance()
 
 	pinFd := int(pin.val.Fd())

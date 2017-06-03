@@ -39,24 +39,23 @@ DF669959170DC1D4
 udooer@udooneo:/opt/udoo-web-conf/shscripts$
 */
 
-const (
-	PeripheralBaseUnknown int64 = 0
-	PeripheralBase2835    int64 = 0x20000000
-	PeripheralBase2836    int64 = 0x3f000000
-	PeripheralBase2837    int64 = 0x3f000000
-)
-
 // ModelT :  Raspberry Pi Revision :: Model
 type ModelT int
 
 const (
-	ModelNeoBasic  ModelT = iota // udoo neo basic,	//  0
-	ModelNeoExtend               // udoo neo extend,	//  1
-	ModelNeoFull                 // udoo neo full,	//  2
+	//ModelNeoBasic   Udoo neo basic
+	ModelNeoBasic ModelT = iota
+	//ModelNeoExtend   Udoo neo extend
+	ModelNeoExtend
+	//ModelNeoFull   udoo neo full,	//  2
+	ModelNeoFull
+	//Modelquad  Udoo quad
 	Modelquad
+	//ModelDual   Udoo dual
 	ModelDual
-
+	//Modelx86    Udoo x86
 	Modelx86
+	//ModelSecosbcA62  Udoo secosbc a62
 	ModelSecosbcA62
 )
 
@@ -66,36 +65,32 @@ type MemoryT int
 // the value is from PRI post PI2 revision
 const (
 	UnknownMB MemoryT = -1
-	512MB     MemoryT = 1
-	1024MB    MemoryT = 2
+	M512MB    MemoryT = 1
+	M1024MB   MemoryT = 2
 )
 
-type ProcessorT int
-
-const (
-	Unknown ProcessorT = -1
-	IMX6    ProcessorT = 0
-)
-
+//InfoT  store board information
 type InfoT struct {
-	model            ModelT
-	hasM4, hasLvds15 bool
+	Model            ModelT
+	HasM4, HasLvds15 bool
+	Uid              string
 	/*	mem       MemoryT
 		processor ProcessorT
 		revision uint64
 	*/
 }
 
+//ModelName  map to board name
 func (info *InfoT) ModelName() (modelname string) {
-	return ModelName[info.model]
+	return modelName[info.Model]
 }
 
-var ModelName = map[ModelT]string{
+var modelName = map[ModelT]string{
 	ModelNeoBasic:  "Udoo Neo basic",
 	ModelNeoExtend: "Udoo Neo extend",
 	ModelNeoFull:   "Udoo Neo full",
 
-	Modelx86:        "model",
+	Modelx86:        "Udoo x86",
 	Modelquad:       "",
 	ModelDual:       "",
 	ModelSecosbcA62: "",
@@ -122,6 +117,7 @@ func getRevision() (revision string, err error) {
 	return
 }
 
+//GetBoardInfo  returns board information
 func GetBoardInfo() (info InfoT /*, periphereBase int64*/, err error) {
 	model, err := ioutil.ReadFile("/proc/device-tree/model")
 	if err != nil {
@@ -131,27 +127,35 @@ func GetBoardInfo() (info InfoT /*, periphereBase int64*/, err error) {
 
 	switch str {
 	case "UDOO Quad Board":
-		info.model = Modelquad
-		info.hasM4 = false
-		info.hasLvds15 = true
+		info.Model = Modelquad
+		info.HasM4 = false
+		info.HasLvds15 = true
 	case "UDOO Dual-lite Board":
-		info.model = ModelDual
-		info.hasM4 = false
-		info.hasLvds15 = true
+		info.Model = ModelDual
+		info.HasM4 = false
+		info.HasLvds15 = true
 	case "UDOO Neo Extended":
-		info.model = ModelNeoExtend
-		info.hasM4 = true
-		info.hasLvds15 = false
+		info.Model = ModelNeoExtend
+		info.HasM4 = true
+		info.HasLvds15 = false
 	case "UDOO Neo Full":
-		info.model = ModelNeoFull
-		info.hasM4 = true
-		info.hasLvds15 = false
+		info.Model = ModelNeoFull
+		info.HasM4 = true
+		info.HasLvds15 = false
 	case "UDOO Neo Basic Kickstarter":
 		fallthrough
 	case "UDOO Neo Basic":
-		info.model = ModelNeoBasic
-		info.hasM4 = true
-		info.hasLvds15 = false
+		info.Model = ModelNeoBasic
+		info.HasM4 = true
+		info.HasLvds15 = false
+	}
+
+	if h, err := ioutil.ReadFile("/sys/fsl_otp/HW_OCOTP_CFG0"); err == nil {
+		if l, err := ioutil.ReadFile("/sys/fsl_otp/HW_OCOTP_CFG1"); err == nil {
+			hs := strings.TrimSpace(string(h))
+			ls := strings.TrimSpace(string(l))
+			info.Uid = hs + ls
+		}
 	}
 
 	return
