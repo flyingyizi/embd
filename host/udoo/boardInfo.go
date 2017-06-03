@@ -58,7 +58,7 @@ const (
 type InfoT struct {
 	Model            ModelT
 	HasM4, HasLvds15 bool
-	Uid              string
+	UID              string
 	/*	mem       MemoryT
 		processor ProcessorT
 		revision uint64
@@ -139,7 +139,7 @@ func GetBoardInfo() (info InfoT /*, periphereBase int64*/, err error) {
 		if l, err := ioutil.ReadFile("/sys/fsl_otp/HW_OCOTP_CFG1"); err == nil {
 			hs := strings.TrimSpace(string(h))
 			ls := strings.TrimSpace(string(l))
-			info.Uid = hs + ls
+			info.UID = hs + ls
 		}
 	}
 
