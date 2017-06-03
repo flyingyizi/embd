@@ -22,21 +22,6 @@ Revision	: 0000
 Serial		: 0000000000000000
 
 
-udooer@udooneo:/opt/udoo-web-conf/shscripts$ cat serial.sh
-#!/bin/bash
-
-H=`cat /sys/fsl_otp/HW_OCOTP_CFG0 |sed -e 's/0x//'`
-L=`cat /sys/fsl_otp/HW_OCOTP_CFG1 |sed -e 's/0x//'`
-
-SERIAL=$H$L
-SERIAL=${SERIAL^^}
-
-echo $SERIAL
-
-udooer@udooneo:/opt/udoo-web-conf/shscripts$ sudo ./serial.sh
-[sudo] password for udooer:
-DF669959170DC1D4
-udooer@udooneo:/opt/udoo-web-conf/shscripts$
 */
 
 // ModelT :  Raspberry Pi Revision :: Model

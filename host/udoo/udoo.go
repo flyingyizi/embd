@@ -54,9 +54,9 @@ var neorev1Pins = embd.PinMap{
 	&embd.PinDesc{ID: "J4_16", Aliases: []string{"106", "GPIO4_IO10", "PWM", "PWM_3"}, Caps: embd.CapDigital, DigitalLogical: 106},
 }
 
-//var ledMap = embd.LEDMap{
-//	"led0": []string{"0", "led0", "LED0"},
-//}
+var ledMap = embd.LEDMap{
+	"led0": []string{"0", "led0", "LED0"},
+}
 
 func init() {
 	embd.Register(embd.HostUdoo, func(rev int) *embd.Descriptor {
@@ -72,9 +72,9 @@ func init() {
 			I2CDriver: func() embd.I2CDriver {
 				return embd.NewI2CDriver(generic.NewI2CBus)
 			},
-			//LEDDriver: func() embd.LEDDriver {
-			//	return embd.NewLEDDriver(ledMap, generic.NewLED)
-			//},
+			LEDDriver: func() embd.LEDDriver {
+				return embd.NewLEDDriver(ledMap, generic.NewLED)
+			},
 			SPIDriver: func() embd.SPIDriver {
 				return embd.NewSPIDriver(spiDeviceMinor, generic.NewSPIBus, nil)
 			},
