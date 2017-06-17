@@ -2,6 +2,8 @@
 // This driver requires kernel version 3.8+ and should work uniformly
 // 实现rpi 直接memory map操纵GPIO.  实现package embd中“type DigitalPin interface”的所有接口
 
+//go:generate go run mkiomuxc.go
+
 package udoo
 
 import (
@@ -52,96 +54,98 @@ var (
 )
 
 type GpioPin struct {
-	n          int
-	aliay      string
-	padctrlOft uint32
-	muxOft     uint32
+	n     int
+	aliay string
+	crl   PinCrtl
+	//padctrlOft uint32
+	//muxOft     uint32
 }
 
 var pins = [...]GpioPin{
-	GpioPin{n: 0, aliay: "GPIO1_IO00", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO00, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO00}, //padctrl code ref P283, pad mux reg mem offset ref p1691
-	GpioPin{n: 1, aliay: "GPIO1_IO01", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO01, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO01},
-	GpioPin{n: 2, aliay: "GPIO1_IO02", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO02, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO02},
-	GpioPin{n: 3, aliay: "GPIO1_IO03", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO03, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO03},
-	GpioPin{n: 4, aliay: "GPIO1_IO04", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO04, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO04},
-	GpioPin{n: 5, aliay: "GPIO1_IO05", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO05, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO05},
-	GpioPin{n: 6, aliay: "GPIO1_IO06", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO06, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO06},
-	GpioPin{n: 7, aliay: "GPIO1_IO07", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO07, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO07},
-	GpioPin{n: 8, aliay: "GPIO1_IO08", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO08, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO08},
-	GpioPin{n: 9, aliay: "GPIO1_IO09", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO09, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO09},
-	GpioPin{n: 10, aliay: "GPIO1_IO10", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO10, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO10},
-	GpioPin{n: 11, aliay: "GPIO1_IO11", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO11, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO11},
-	GpioPin{n: 12, aliay: "GPIO1_IO12", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO12, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO12},
-	GpioPin{n: 13, aliay: "GPIO1_IO13", padctrlOft: SW_PAD_CTL_PAD_GPIO1_IO13, muxOft: IOMUXC_SW_MUX_CTL_PAD_GPIO1_IO13},
-	GpioPin{n: 14, aliay: "GPIO1_IO14", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA00, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA00},
-	GpioPin{n: 15, aliay: "GPIO1_IO15", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA01, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA01},
-	GpioPin{n: 16, aliay: "GPIO1_IO16", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA02, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA02},
-	GpioPin{n: 17, aliay: "GPIO1_IO17", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA03, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA03},
-	GpioPin{n: 18, aliay: "GPIO1_IO18", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA04, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA04},
-	GpioPin{n: 19, aliay: "GPIO1_IO19", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA05, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA05},
-	GpioPin{n: 20, aliay: "GPIO1_IO20", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA06, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA06},
-	GpioPin{n: 21, aliay: "GPIO1_IO21", padctrlOft: SW_PAD_CTL_PAD_CSI_DATA07, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_DATA07},
-	GpioPin{n: 22, aliay: "GPIO1_IO22", padctrlOft: SW_PAD_CTL_PAD_CSI_HSYNC, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_HSYNC},
-	GpioPin{n: 23, aliay: "GPIO1_IO23", padctrlOft: SW_PAD_CTL_PAD_CSI_MCLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_MCLK},
-	GpioPin{n: 24, aliay: "GPIO1_IO24", padctrlOft: SW_PAD_CTL_PAD_CSI_PIXCLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_PIXCLK},
-	GpioPin{n: 25, aliay: "GPIO1_IO25", padctrlOft: SW_PAD_CTL_PAD_CSI_VSYNC, muxOft: IOMUXC_SW_MUX_CTL_PAD_CSI_VSYNC},
+	GpioPin{n: 0, aliay: "GPIO1_IO00", crl: MX6SX_PAD_GPIO1_IO00__GPIO1_IO_0}, //padctrl code ref P283, pad mux reg mem offset ref p1691
+	GpioPin{n: 1, aliay: "GPIO1_IO01", crl: MX6SX_PAD_GPIO1_IO01__GPIO1_IO_1},
+	GpioPin{n: 2, aliay: "GPIO1_IO02", crl: MX6SX_PAD_GPIO1_IO02__GPIO1_IO_2},
+	GpioPin{n: 4, aliay: "GPIO1_IO04", crl: MX6SX_PAD_GPIO1_IO04__GPIO1_IO_4},
+	GpioPin{n: 5, aliay: "GPIO1_IO05", crl: MX6SX_PAD_GPIO1_IO05__GPIO1_IO_5},
+	GpioPin{n: 6, aliay: "GPIO1_IO06", crl: MX6SX_PAD_GPIO1_IO06__GPIO1_IO_6},
+	GpioPin{n: 7, aliay: "GPIO1_IO07", crl: MX6SX_PAD_GPIO1_IO07__GPIO1_IO_7},
+	GpioPin{n: 8, aliay: "GPIO1_IO08", crl: MX6SX_PAD_GPIO1_IO08__GPIO1_IO_8},
+	GpioPin{n: 9, aliay: "GPIO1_IO09", crl: MX6SX_PAD_GPIO1_IO09__GPIO1_IO_9},
+	GpioPin{n: 10, aliay: "GPIO1_IO10", crl: MX6SX_PAD_GPIO1_IO10__GPIO1_IO_10},
+	GpioPin{n: 11, aliay: "GPIO1_IO11", crl: MX6SX_PAD_GPIO1_IO11__GPIO1_IO_11},
+	GpioPin{n: 12, aliay: "GPIO1_IO12", crl: MX6SX_PAD_GPIO1_IO12__GPIO1_IO_12},
+	GpioPin{n: 13, aliay: "GPIO1_IO13", crl: MX6SX_PAD_GPIO1_IO13__GPIO1_IO_13},
+	GpioPin{n: 14, aliay: "GPIO1_IO14", crl: MX6SX_PAD_CSI_DATA00__GPIO1_IO_14},
+	GpioPin{n: 15, aliay: "GPIO1_IO15", crl: MX6SX_PAD_CSI_DATA01__GPIO1_IO_15},
+	GpioPin{n: 16, aliay: "GPIO1_IO16", crl: MX6SX_PAD_CSI_DATA02__GPIO1_IO_16},
+	GpioPin{n: 17, aliay: "GPIO1_IO17", crl: MX6SX_PAD_CSI_DATA03__GPIO1_IO_17},
+	GpioPin{n: 18, aliay: "GPIO1_IO18", crl: MX6SX_PAD_CSI_DATA04__GPIO1_IO_18},
+	GpioPin{n: 19, aliay: "GPIO1_IO19", crl: MX6SX_PAD_CSI_DATA05__GPIO1_IO_19},
+	GpioPin{n: 20, aliay: "GPIO1_IO20", crl: MX6SX_PAD_CSI_DATA06__GPIO1_IO_20},
+	GpioPin{n: 21, aliay: "GPIO1_IO21", crl: MX6SX_PAD_CSI_DATA07__GPIO1_IO_21},
+	GpioPin{n: 22, aliay: "GPIO1_IO22", crl: MX6SX_PAD_CSI_HSYNC__GPIO1_IO_22},
+	GpioPin{n: 23, aliay: "GPIO1_IO23", crl: MX6SX_PAD_CSI_MCLK__GPIO1_IO_23},
+	GpioPin{n: 24, aliay: "GPIO1_IO24", crl: MX6SX_PAD_CSI_PIXCLK__GPIO1_IO_24},
+	GpioPin{n: 25, aliay: "GPIO1_IO25", crl: MX6SX_PAD_CSI_VSYNC__GPIO1_IO_25},
 
-	GpioPin{n: 96, aliay: "GPIO4_IO00", padctrlOft: SW_PAD_CTL_PAD_NAND_ALE, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_ALE}, //padctrl code ref P285, pad mux reg mem offset ref p1695
-	GpioPin{n: 97, aliay: "GPIO4_IO01", padctrlOft: SW_PAD_CTL_PAD_NAND_CE0_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_CE0_B},
-	GpioPin{n: 98, aliay: "GPIO4_IO02", padctrlOft: SW_PAD_CTL_PAD_NAND_CE1_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_CE1_B},
-	GpioPin{n: 99, aliay: "GPIO4_IO03", padctrlOft: SW_PAD_CTL_PAD_NAND_CLE, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_CLE},
-	GpioPin{n: 100, aliay: "GPIO4_IO04", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA00, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA00},
-	GpioPin{n: 101, aliay: "GPIO4_IO05", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA01, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA01},
-	GpioPin{n: 102, aliay: "GPIO4_IO06", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA02, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA02},
-	GpioPin{n: 103, aliay: "GPIO4_IO07", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA03, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA03},
-	GpioPin{n: 104, aliay: "GPIO4_IO08", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA04, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA04},
-	GpioPin{n: 105, aliay: "GPIO4_IO09", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA05, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA05},
-	GpioPin{n: 106, aliay: "GPIO4_IO10", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA06, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA06},
-	GpioPin{n: 107, aliay: "GPIO4_IO11", padctrlOft: SW_PAD_CTL_PAD_NAND_DATA07, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_DATA07},
-	GpioPin{n: 108, aliay: "GPIO4_IO12", padctrlOft: SW_PAD_CTL_PAD_NAND_RE_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_RE_B},
-	GpioPin{n: 109, aliay: "GPIO4_IO13", padctrlOft: SW_PAD_CTL_PAD_NAND_READY_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_READY_B},
-	GpioPin{n: 110, aliay: "GPIO4_IO14", padctrlOft: SW_PAD_CTL_PAD_NAND_WE_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_WE_B},
-	GpioPin{n: 111, aliay: "GPIO4_IO15", padctrlOft: SW_PAD_CTL_PAD_NAND_WP_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_NAND_WP_B},
-	GpioPin{n: 112, aliay: "GPIO4_IO16", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_DATA0, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_DATA0},
-	GpioPin{n: 113, aliay: "GPIO4_IO17", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_DATA1, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_DATA1},
-	GpioPin{n: 114, aliay: "GPIO4_IO18", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_DATA2, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_DATA2},
-	GpioPin{n: 115, aliay: "GPIO4_IO19", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_DATA3, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_DATA3},
-	GpioPin{n: 116, aliay: "GPIO4_IO20", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_DQS, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_DQS},
-	GpioPin{n: 117, aliay: "GPIO4_IO21", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_SCLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_SCLK},
-	GpioPin{n: 118, aliay: "GPIO4_IO22", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_SS0_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_SS0_B},
-	GpioPin{n: 119, aliay: "GPIO4_IO23", padctrlOft: SW_PAD_CTL_PAD_QSPI1A_SS1_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1A_SS1_B},
-	GpioPin{n: 120, aliay: "GPIO4_IO24", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_DATA0, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_DATA0},
-	GpioPin{n: 121, aliay: "GPIO4_IO25", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_DATA1, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_DATA1},
-	GpioPin{n: 122, aliay: "GPIO4_IO26", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_DATA2, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_DATA2},
-	GpioPin{n: 123, aliay: "GPIO4_IO27", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_DATA3, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_DATA3},
-	GpioPin{n: 124, aliay: "GPIO4_IO28", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_DQS, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_DQS},
-	GpioPin{n: 125, aliay: "GPIO4_IO29", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_SCLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_SCLK},
-	GpioPin{n: 126, aliay: "GPIO4_IO30", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_SS0_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_SS0_B},
-	GpioPin{n: 127, aliay: "GPIO4_IO31", padctrlOft: SW_PAD_CTL_PAD_QSPI1B_SS1_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_QSPI1B_SS1_B},
+	GpioPin{n: 96, aliay: "GPIO4_IO00", crl: MX6SX_PAD_NAND_ALE__GPIO4_IO_0}, //padctrl code ref P285, pad mux reg mem offset ref p1695
+	GpioPin{n: 97, aliay: "GPIO4_IO01", crl: MX6SX_PAD_NAND_CE0_B__GPIO4_IO_1},
+	GpioPin{n: 98, aliay: "GPIO4_IO02", crl: MX6SX_PAD_NAND_CE1_B__GPIO4_IO_2},
+	GpioPin{n: 99, aliay: "GPIO4_IO03", crl: MX6SX_PAD_NAND_CLE__GPIO4_IO_3},
 
-	GpioPin{n: 160, aliay: "GPIO6_IO00", padctrlOft: SW_PAD_CTL_PAD_SD1_CLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD1_CLK}, //padctrl code ref P287, pad mux reg mem offset ref p1697
-	GpioPin{n: 161, aliay: "GPIO6_IO01", padctrlOft: SW_PAD_CTL_PAD_SD1_CMD, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD1_CMD},
-	GpioPin{n: 162, aliay: "GPIO6_IO02", padctrlOft: SW_PAD_CTL_PAD_SD1_DATA0, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD1_DATA0},
-	GpioPin{n: 163, aliay: "GPIO6_IO03", padctrlOft: SW_PAD_CTL_PAD_SD1_DATA1, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD1_DATA1},
-	GpioPin{n: 164, aliay: "GPIO6_IO04", padctrlOft: SW_PAD_CTL_PAD_SD1_DATA2, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD1_DATA2},
-	GpioPin{n: 165, aliay: "GPIO6_IO05", padctrlOft: SW_PAD_CTL_PAD_SD1_DATA3, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD1_DATA3},
-	GpioPin{n: 166, aliay: "GPIO6_IO06", padctrlOft: SW_PAD_CTL_PAD_SD2_CLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD2_CLK},
-	GpioPin{n: 167, aliay: "GPIO6_IO07", padctrlOft: SW_PAD_CTL_PAD_SD2_CMD, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD2_CMD},
-	GpioPin{n: 168, aliay: "GPIO6_IO08", padctrlOft: SW_PAD_CTL_PAD_SD2_DATA0, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD2_DATA0},
-	GpioPin{n: 169, aliay: "GPIO6_IO09", padctrlOft: SW_PAD_CTL_PAD_SD2_DATA1, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD2_DATA1},
-	GpioPin{n: 170, aliay: "GPIO6_IO10", padctrlOft: SW_PAD_CTL_PAD_SD2_DATA2, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD2_DATA2},
-	GpioPin{n: 171, aliay: "GPIO6_IO11", padctrlOft: SW_PAD_CTL_PAD_SD2_DATA3, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD2_DATA3},
-	GpioPin{n: 172, aliay: "GPIO6_IO12", padctrlOft: SW_PAD_CTL_PAD_SD4_CLK, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_CLK},
-	GpioPin{n: 173, aliay: "GPIO6_IO13", padctrlOft: SW_PAD_CTL_PAD_SD4_CMD, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_CMD},
-	GpioPin{n: 174, aliay: "GPIO6_IO14", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA0, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA0},
-	GpioPin{n: 175, aliay: "GPIO6_IO15", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA1, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA1},
-	GpioPin{n: 176, aliay: "GPIO6_IO16", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA2, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA2},
-	GpioPin{n: 177, aliay: "GPIO6_IO17", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA3, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA3},
-	GpioPin{n: 178, aliay: "GPIO6_IO18", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA4, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA4},
-	GpioPin{n: 179, aliay: "GPIO6_IO19", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA5, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA5},
-	GpioPin{n: 180, aliay: "GPIO6_IO20", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA6, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA6},
-	GpioPin{n: 181, aliay: "GPIO6_IO21", padctrlOft: SW_PAD_CTL_PAD_SD4_DATA7, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_DATA7},
-	GpioPin{n: 182, aliay: "GPIO6_IO22", padctrlOft: SW_PAD_CTL_PAD_SD4_RESET_B, muxOft: IOMUXC_SW_MUX_CTL_PAD_SD4_RESET_B},
+	GpioPin{n: 100, aliay: "GPIO4_IO04", crl: MX6SX_PAD_NAND_DATA00__GPIO4_IO_4},
+	GpioPin{n: 101, aliay: "GPIO4_IO05", crl: MX6SX_PAD_NAND_DATA01__GPIO4_IO_5},
+	GpioPin{n: 102, aliay: "GPIO4_IO06", crl: MX6SX_PAD_NAND_DATA02__GPIO4_IO_6},
+	GpioPin{n: 103, aliay: "GPIO4_IO07", crl: MX6SX_PAD_NAND_DATA03__GPIO4_IO_7},
+	GpioPin{n: 104, aliay: "GPIO4_IO08", crl: MX6SX_PAD_NAND_DATA04__GPIO4_IO_8},
+	GpioPin{n: 105, aliay: "GPIO4_IO09", crl: MX6SX_PAD_NAND_DATA05__GPIO4_IO_9},
+	GpioPin{n: 106, aliay: "GPIO4_IO10", crl: MX6SX_PAD_NAND_DATA06__GPIO4_IO_10},
+	GpioPin{n: 107, aliay: "GPIO4_IO11", crl: MX6SX_PAD_NAND_DATA07__GPIO4_IO_11},
+	/*ToDo
+	GpioPin{n: 108, aliay: "GPIO4_IO12", crl:},
+	GpioPin{n: 109, aliay: "GPIO4_IO13", crl:},
+	GpioPin{n: 110, aliay: "GPIO4_IO14", crl:},
+	GpioPin{n: 111, aliay: "GPIO4_IO15", crl:},
+	GpioPin{n: 112, aliay: "GPIO4_IO16", crl:},
+	GpioPin{n: 113, aliay: "GPIO4_IO17", crl:},
+	GpioPin{n: 114, aliay: "GPIO4_IO18", crl:},
+	GpioPin{n: 115, aliay: "GPIO4_IO19", crl:},
+	GpioPin{n: 116, aliay: "GPIO4_IO20", crl:},
+	GpioPin{n: 117, aliay: "GPIO4_IO21", crl:},
+	GpioPin{n: 118, aliay: "GPIO4_IO22", crl:},
+	GpioPin{n: 119, aliay: "GPIO4_IO23", crl:},
+	GpioPin{n: 120, aliay: "GPIO4_IO24", crl:},
+	GpioPin{n: 121, aliay: "GPIO4_IO25", crl:},
+	GpioPin{n: 122, aliay: "GPIO4_IO26", crl:},
+	GpioPin{n: 123, aliay: "GPIO4_IO27", crl:},
+	GpioPin{n: 124, aliay: "GPIO4_IO28", crl:},
+	GpioPin{n: 125, aliay: "GPIO4_IO29", crl:},
+	GpioPin{n: 126, aliay: "GPIO4_IO30", crl:},
+	GpioPin{n: 127, aliay: "GPIO4_IO31", crl:},
+
+	GpioPin{n: 160, aliay: "GPIO6_IO00",crl:MX6SX_PAD_SD1_CLK__GPIO6_IO_0}, //padctrl code ref P287, pad mux reg mem offset ref p1697
+	GpioPin{n: 161, aliay: "GPIO6_IO01",
+	GpioPin{n: 162, aliay: "GPIO6_IO02", },
+	GpioPin{n: 163, aliay: "GPIO6_IO03", },
+	GpioPin{n: 164, aliay: "GPIO6_IO04", },
+	GpioPin{n: 165, aliay: "GPIO6_IO05", },
+	GpioPin{n: 166, aliay: "GPIO6_IO06",
+	GpioPin{n: 167, aliay: "GPIO6_IO07",
+	GpioPin{n: 168, aliay: "GPIO6_IO08", },
+	GpioPin{n: 169, aliay: "GPIO6_IO09", },
+	GpioPin{n: 170, aliay: "GPIO6_IO10", crl:MX6SX_PAD_SD2_DATA2__GPIO6_IO_10},
+	GpioPin{n: 171, aliay: "GPIO6_IO11", crl:MX6SX_PAD_SD2_DATA3__GPIO6_IO_11},
+	GpioPin{n: 172, aliay: "GPIO6_IO12",
+	GpioPin{n: 173, aliay: "GPIO6_IO13",
+	GpioPin{n: 174, aliay: "GPIO6_IO14", },
+	GpioPin{n: 175, aliay: "GPIO6_IO15", },
+	GpioPin{n: 176, aliay: "GPIO6_IO16", },
+	GpioPin{n: 177, aliay: "GPIO6_IO17", },
+	GpioPin{n: 178, aliay: "GPIO6_IO18", },
+	GpioPin{n: 179, aliay: "GPIO6_IO19", },
+	GpioPin{n: 180, aliay: "GPIO6_IO20", },
+	GpioPin{n: 181, aliay: "GPIO6_IO21", },
+	GpioPin{n: 182, aliay: "GPIO6_IO22", },  */
 }
 
 var (
