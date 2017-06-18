@@ -28,18 +28,6 @@ const (
 	defaultSPISpeed = 1000000
 )
 
-type spiIOCTransfer struct {
-	txBuf uint64
-	rxBuf uint64
-
-	length      uint32
-	speedHz     uint32
-	delayus     uint16
-	bitsPerWord uint8
-	csChange    uint8
-	pad         uint32
-}
-
 type spiBus struct {
 	file *os.File
 
@@ -143,7 +131,7 @@ func (b *spiBus) setSpeed() error {
 		return err
 	}
 	glog.V(3).Infof("spi: speedMax set to %v", speed)
-	b.spiTransferData.speedHz = speed
+	b.spiTransferData.Speed_hz = speed
 
 	return nil
 }
@@ -162,7 +150,7 @@ func (b *spiBus) setBPW() error {
 		return err
 	}
 	glog.V(3).Infof("spi: bpw set to %v", bpw)
-	b.spiTransferData.bitsPerWord = uint8(bpw)
+	b.spiTransferData.Bits_per_word = uint8(bpw)
 	return nil
 }
 
@@ -173,7 +161,7 @@ func (b *spiBus) setDelay() {
 	}
 
 	glog.V(3).Infof("spi: delayms set to %v", delay)
-	b.spiTransferData.delayus = delay
+	b.spiTransferData.Delay_usecs = delay
 }
 
 func (b *spiBus) TransferAndReceiveData(dataBuffer []uint8) error {
@@ -184,9 +172,9 @@ func (b *spiBus) TransferAndReceiveData(dataBuffer []uint8) error {
 	len := len(dataBuffer)
 	dataCarrier := b.spiTransferData
 
-	dataCarrier.length = uint32(len)
-	dataCarrier.txBuf = uint64(uintptr(unsafe.Pointer(&dataBuffer[0])))
-	dataCarrier.rxBuf = uint64(uintptr(unsafe.Pointer(&dataBuffer[0])))
+	dataCarrier.Len = uint32(len)
+	dataCarrier.Tx_buf = uint64(uintptr(unsafe.Pointer(&dataBuffer[0])))
+	dataCarrier.Rx_buf = uint64(uintptr(unsafe.Pointer(&dataBuffer[0])))
 
 	glog.V(3).Infof("spi: sending dataBuffer %v with carrier %v", dataBuffer, dataCarrier)
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, b.file.Fd(), uintptr(spiIOCMessageN(1)), uintptr(unsafe.Pointer(&dataCarrier)))

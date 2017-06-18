@@ -5,6 +5,7 @@ package generic
 /*
 #include <linux/i2c.h>
 #include <linux/i2c-dev.h>
+#include <linux/spi/spidev.h>
 */
 import "C"
 
@@ -40,11 +41,22 @@ type i2c_rdwr_ioctl_data C.struct_i2c_rdwr_ioctl_data
 
 type i2c_smbus_ioctl_data C.struct_i2c_smbus_ioctl_data
 
+type spiIOCTransfer C.struct_spi_ioc_transfer
+
 const (
+	SizeofspiIOCTransfer       = C.sizeof_struct_spi_ioc_transfer
 	Sizeofi2c_msg              = C.sizeof_struct_i2c_msg
 	Sizeofi2c_smbus_ioctl_data = C.sizeof_struct_i2c_smbus_ioctl_data
 	Sizeofi2c_rdwr_ioctl_data  = C.sizeof_struct_i2c_rdwr_ioctl_data
 )
+
+/*
+#define SPI_MSGSIZE(N) \
+	((((N)*(sizeof (struct spi_ioc_transfer))) < (1 << _IOC_SIZEBITS)) \
+		? ((N)*(sizeof (struct spi_ioc_transfer))) : 0)
+#define SPI_IOC_MESSAGE(N) _IOW(SPI_IOC_MAGIC, 0, char[SPI_MSGSIZE(N)])
+
+*/
 
 // for SPI
 /*

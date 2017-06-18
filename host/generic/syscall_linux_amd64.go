@@ -49,7 +49,21 @@ type i2c_smbus_ioctl_data struct {
 	Data      *[34]byte
 }
 
+type spiIOCTransfer struct {
+	Tx_buf        uint64
+	Rx_buf        uint64
+	Len           uint32
+	Speed_hz      uint32
+	Delay_usecs   uint16
+	Bits_per_word uint8
+	Cs_change     uint8
+	Tx_nbits      uint8
+	Rx_nbits      uint8
+	Pad           uint16
+}
+
 const (
+	SizeofspiIOCTransfer       = 0x20
 	Sizeofi2c_msg              = 0x10
 	Sizeofi2c_smbus_ioctl_data = 0x10
 	Sizeofi2c_rdwr_ioctl_data  = 0x10
