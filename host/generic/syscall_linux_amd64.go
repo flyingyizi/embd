@@ -48,3 +48,9 @@ type i2c_smbus_ioctl_data struct {
 	Size      uint32
 	Data      *[34]byte
 }
+
+const (
+	Sizeofi2c_msg              = 0x10
+	Sizeofi2c_smbus_ioctl_data = 0x10
+	Sizeofi2c_rdwr_ioctl_data  = 0x10
+)

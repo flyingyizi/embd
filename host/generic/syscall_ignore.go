@@ -8,7 +8,6 @@ package generic
 */
 import "C"
 
-
 // for I2c
 
 const (
@@ -41,4 +40,21 @@ type i2c_rdwr_ioctl_data C.struct_i2c_rdwr_ioctl_data
 
 type i2c_smbus_ioctl_data C.struct_i2c_smbus_ioctl_data
 
+const (
+	Sizeofi2c_msg              = C.sizeof_struct_i2c_msg
+	Sizeofi2c_smbus_ioctl_data = C.sizeof_struct_i2c_smbus_ioctl_data
+	Sizeofi2c_rdwr_ioctl_data  = C.sizeof_struct_i2c_rdwr_ioctl_data
+)
+
 // for SPI
+/*
+// for SPI
+const (
+	spiIOCWrMode        = C.SPI_IOC_WR_MODE
+	spiIOCWrBitsPerWord = C.SPI_IOC_WR_BITS_PER_WORD
+	spiIOCWrMaxSpeedHz  = C.SPI_IOC_WR_MAX_SPEED_HZ
+	spiIOCRdMode        = C.SPI_IOC_RD_MODE
+	spiIOCRdBitsPerWord = C.SPI_IOC_RD_BITS_PER_WORD
+	spiIOCRdMaxSpeedHz  = C.SPI_IOC_RD_MAX_SPEED_HZ
+)
+*/
