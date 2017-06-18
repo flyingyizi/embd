@@ -17,24 +17,7 @@ import (
 
 const (
 	delay = 20
-
-	slaveCmd = 0x0703 // Cmd to set slave address
-	rdrwCmd  = 0x0707 // Cmd to read/write data together
-
-	rd = 0x0001
 )
-
-type i2c_msg struct {
-	addr  uint16
-	flags uint16
-	len   uint16
-	buf   uintptr
-}
-
-type i2c_rdwr_ioctl_data struct {
-	msgs uintptr
-	nmsg uint32
-}
 
 type i2cBus struct {
 	l    byte
@@ -187,20 +170,20 @@ func (b *i2cBus) ReadFromReg(addr, reg byte, value []byte) error {
 	hdrp := (*reflect.SliceHeader)(unsafe.Pointer(&value))
 
 	var messages [2]i2c_msg
-	messages[0].addr = uint16(addr)
-	messages[0].flags = 0
-	messages[0].len = 1
-	messages[0].buf = uintptr(unsafe.Pointer(&reg))
+	messages[0].Addr = uint16(addr)
+	messages[0].Flags = 0
+	messages[0].Len = 1
+	messages[0].Buf = (*uint8)(unsafe.Pointer(&reg))
 
-	messages[1].addr = uint16(addr)
-	messages[1].flags = rd
-	messages[1].len = uint16(len(value))
-	messages[1].buf = uintptr(unsafe.Pointer(hdrp.Data))
+	messages[1].Addr = uint16(addr)
+	messages[1].Flags = rd
+	messages[1].Len = uint16(len(value))
+	messages[1].Buf = (*uint8)(unsafe.Pointer(hdrp.Data))
 
 	var packets i2c_rdwr_ioctl_data
 
-	packets.msgs = uintptr(unsafe.Pointer(&messages))
-	packets.nmsg = 2
+	packets.Msgs = (*i2c_msg)(unsafe.Pointer(&messages))
+	packets.Nmsgs = 2
 
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, b.file.Fd(), rdrwCmd, uintptr(unsafe.Pointer(&packets))); errno != 0 {
 		return syscall.Errno(errno)
@@ -242,15 +225,15 @@ func (b *i2cBus) WriteToReg(addr, reg byte, value []byte) error {
 	hdrp := (*reflect.SliceHeader)(unsafe.Pointer(&outbuf))
 
 	var message i2c_msg
-	message.addr = uint16(addr)
-	message.flags = 0
-	message.len = uint16(len(outbuf))
-	message.buf = uintptr(unsafe.Pointer(hdrp.Data))
+	message.Addr = uint16(addr)
+	message.Flags = 0
+	message.Len = uint16(len(outbuf))
+	message.Buf = (*uint8)(unsafe.Pointer(hdrp.Data))
 
 	var packets i2c_rdwr_ioctl_data
 
-	packets.msgs = uintptr(unsafe.Pointer(&message))
-	packets.nmsg = 1
+	packets.Msgs = (*i2c_msg)(unsafe.Pointer(&message))
+	packets.Nmsgs = 1
 
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, b.file.Fd(), rdrwCmd, uintptr(unsafe.Pointer(&packets))); errno != 0 {
 		return syscall.Errno(errno)
@@ -277,15 +260,15 @@ func (b *i2cBus) WriteByteToReg(addr, reg, value byte) error {
 	}
 
 	var message i2c_msg
-	message.addr = uint16(addr)
-	message.flags = 0
-	message.len = uint16(len(outbuf))
-	message.buf = uintptr(unsafe.Pointer(&outbuf))
+	message.Addr = uint16(addr)
+	message.Flags = 0
+	message.Len = uint16(len(outbuf))
+	message.Buf = (*uint8)(unsafe.Pointer(&outbuf))
 
 	var packets i2c_rdwr_ioctl_data
 
-	packets.msgs = uintptr(unsafe.Pointer(&message))
-	packets.nmsg = 1
+	packets.Msgs = (*i2c_msg)(unsafe.Pointer(&message))
+	packets.Nmsgs = 1
 
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, b.file.Fd(), rdrwCmd, uintptr(unsafe.Pointer(&packets))); errno != 0 {
 		return syscall.Errno(errno)
@@ -313,15 +296,15 @@ func (b *i2cBus) WriteWordToReg(addr, reg byte, value uint16) error {
 	}
 
 	var messages i2c_msg
-	messages.addr = uint16(addr)
-	messages.flags = 0
-	messages.len = uint16(len(outbuf))
-	messages.buf = uintptr(unsafe.Pointer(&outbuf))
+	messages.Addr = uint16(addr)
+	messages.Flags = 0
+	messages.Len = uint16(len(outbuf))
+	messages.Buf = (*uint8)(unsafe.Pointer(&outbuf))
 
 	var packets i2c_rdwr_ioctl_data
 
-	packets.msgs = uintptr(unsafe.Pointer(&messages))
-	packets.nmsg = 1
+	packets.Msgs = (*i2c_msg)(unsafe.Pointer(&messages))
+	packets.Nmsgs = 1
 
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, b.file.Fd(), rdrwCmd, uintptr(unsafe.Pointer(&packets))); errno != 0 {
 		return syscall.Errno(errno)
